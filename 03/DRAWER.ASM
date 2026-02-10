@@ -1,105 +1,175 @@
 .model tiny
 .code 
 org 100h
+locals @@ 
 
 include macros.asm
 
 ; ====================== ATRIBUTES ========================
 
-FG_BLUE         equ 0000000100000000b
-FG_GREEN        equ 0000001000000000b
-FG_RED          equ 0000010000000000b
-FG_BRIGHT       equ 0000100000000000b
+FG_BLUE         equ 00000001b
+FG_GREEN        equ 00000010b
+FG_RED          equ 00000100b
+FG_BRIGHT       equ 00001000b
 
-BG_BLUE         equ 0001000000000000b
-BG_GREEN        equ 0010000000000000b
-BG_RED          equ 0100000000000000b
-BG_BLINK        equ 1000000000000000b
+BG_BLUE         equ 00010000b
+BG_GREEN        equ 00100000b
+BG_RED          equ 01000000b
+BG_BLINK        equ 10000000b
 
 ; ======================= HELPERS =========================
 
 vram_location   equ 0B800h
+center_x        equ 40
+center_y        equ 13
+
+rect_style  struc
+                filling db FG_BLUE
+                frame   db FG_RED 
+            ends
 
 ; =========================================================
 
 __start__:	
 
-                mov ax , 02h or BG_BLUE or FG_RED
-                mov si , 02h 
-                mov cx , 0a02h
+                mov ch, 2
+                mov cl, 10
 
-                call draw_horizontal
-                
-                mov ax , 02h or BG_BLUE or FG_RED
-                mov si , 02h 
-                mov cx , 0a02h
-                
-                call draw_vertical
+                call draw_frame
+
                 __exit__
 
+.data 
+FRAME_STYLES:
+WHITE_ROSE rect_style <BG_BLUE, BG_RED>        
+.code
 
 ; ======================= FUNCTIONS ========================
 
-; ax - character(ASCII table) with atribute
-; si - line number 
-; cl - start position 
-; ch - end position 
-draw_horizontal:   
+;ax - 
+;ch - height 
+;cl - length 
+;si - style_number 
+;return 
+;
+draw_frame:
 
-                mov bx, vram_location        
-                mov es, bx              ;vram_location -> es
+                mov bx, cx
+
+                shr bh, 1  
+                shr bl, 1
+                add bx, 0101h  
+                    
+; bh: height / 2 + 1 : length / 2 + 1 
+                
+                mov ch, center_x
+                mov cl, center_x
+
+                mov dh, center_y
+                mov dl, center_y
+
+                sub ch, bl
+                add cl, bl
+
+                sub dh, bh
+                add dl, bh
+
+                mov ax, 2020h
+                call draw_box
+
+                ret
+
+
+; ax    - atribute
+; ds:si - string   
+; dx - line number  
+; di - position in the row
+; cx - string lenght
+write_line:
+
+                push si
+                mov si, dx
+                call translate_string
+                shl di, 1
+                add di, si
+                pop si
+
+                mov dx, ax
+                mov bx, vram_location
+                mov es, bx 
+
+                test cx,cx
+                jz @@livaem
+                cld 
+    
+@@scope:        lodsb
+                stosb
+                mov es:[di], dx
+                inc di
+                loop @@scope 
+@@livaem:
+                ret
+
+
+; ax - character(ASCII table) with atribute
+; ch - x min  
+; cl - x max 
+; dh - y min 
+; dl - y max 
+draw_box:   
+
+                xor si,si   
+@@scope:                               
+                mov si, dx
+                shr si, 8
+                mov di, cx
+                call draw_horizontal 
+                mov cx, di
+                inc dh 
+                cmp dh,dl
+                jbe @@scope 
+
+                ret
+
+; translates string number in offset
+; si - multiply on 160
+translate_string:
 
                 mov bx, si              ;mul on 160
                 shl bx, 1
                 shl si, 3
                 add si, bx              ; si * 10
                 shl si, 4               ; si * 16
-
-                xor bx, bx 
-                add bl, cl
-                add bl, cl  
-                sub ch, cl  
-                shr cx, 8
-                add cx, 1
-                add bx, si
-
-.scope1:                               
-                mov word ptr es:[bx], ax
-                add bx, 2 
-                loop .scope1
-
+                
                 ret
-        
-; ax - character(ASCII table) with atribute
-; si - column number 
-; cl - start position 
-; ch - end position 
-draw_vertical:  
 
+
+; ax - character(ASCII table) with atribute
+; si - line number 
+; ch - start position 
+; cl - end position 
+draw_horizontal:   
+
+                call translate_string
+                
                 mov bx, vram_location        
                 mov es, bx              ;vram_location -> es
 
-                xor bx, bx
-                xor dx, dx
-                mov bl, cl  
-                mov dl, cl
-                shl dx, 1
-                shl bx, 3
-                add bx, dx
-                shl bx, 4
-                
-                shl si, 1 
+                xor bx, bx 
+                add bl, ch
+                add bl, ch  
+                sub cl, ch  
+                xor ch, ch
                 add bx, si
+                
+                cld
+                inc cx
 
-                sub ch, cl  
-                shr cx, 8
-                add cx, 1
-
-.scope2:                               
+@@scope:                               
                 mov word ptr es:[bx], ax
-                add bx, 160 
-                loop .scope2
+                add bx, 2 
+                loop @@scope
 
                 ret
 
-end 		__start__
+end __start__
