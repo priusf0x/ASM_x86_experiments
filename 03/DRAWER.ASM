@@ -22,36 +22,184 @@ BG_BLINK        equ 10000000b
 vram_location   equ 0B800h
 center_x        equ 40
 center_y        equ 13
+separator       equ '/'
+text_atribute   equ FG_BLUE xor FG_GREEN xor FG_RED
 
 rect_style  struc
-                filling db FG_BLUE
-                frame   db FG_RED 
+                filling       db ?
+                frame-style   db ?
+                text_atribute db ?
             ends
+
+
+pushaem   macro 
+                push ax 
+                push bx
+                push cx
+                push dx
+                push di
+                push si
+        endm
+        
+popaem    macro 
+                pop si
+                pop di
+                pop dx
+                pop cx
+                pop bx
+                pop ax
+        endm
 
 ; =========================================================
 
 __start__:	
 
+
+                mov ax, 2020h
                 mov ch, 2
                 mov cl, 10
 
                 call draw_frame
 
+                mov si, 81h
+                call print_text
+
                 __exit__
 
 .data 
-FRAME_STYLES:
-WHITE_ROSE rect_style <BG_BLUE, BG_RED>        
+FRAME_STYLE rect_style <BG_BLUE, BG_RED>        
 .code
 
 ; ======================= FUNCTIONS ========================
 
-;ax - 
+; ==================== STRING FUNCTION =====================
+
+;si - string ptr
+;return 
+;   ax - string length 
+;   si - skipped until separator or 0Dh
+strlen:
+
+                xor ax, ax
+
+@@scope:
+                mov bl, [si]
+                inc si
+                cmp bl, separator
+                je @@livaem
+                cmp bl, 0Dh
+                je @@livaem
+                inc ax
+                jmp @@scope 
+@@livaem:
+                ret
+
+;si - string ptr
+;al - symbol
+;return 
+;   cx - symbol_amount 
+count_sumbols:
+
+                xor cx,cx 
+
+@@scope:
+                mov bl, [si]
+                inc si
+                cmp bl, 0Dh
+                je @@livaem
+                cmp bl, al
+                je @@increment
+        
+                jmp @@scope 
+@@livaem:
+                ret
+
+@@increment:
+                inc cx
+                jmp @@scope
+
+
+;al - height
+;si - string ptr
+write_string_centered:
+
+                push ax
+                push si 
+
+                call strlen 
+                mov cx, ax
+
+                pop si 
+                pop ax
+
+                xor dx, dx
+                mov dl, ah
+                mov di, center_x
+                mov bx, cx
+                shr bx, 1
+                sub di, bx
+                mov al, text_atribute
+
+                call write_line
+
+                ret
+
+; //TODO - как то атрибуты вставить 
+
+;ah - height 
+;si - text 
+print_text:
+
+@@scope:
+
+                call write_string_centered
+                mov bl, [si]
+                cmp bl, 0Dh
+                je @@livaem 
+                inc si
+                inc ah
+                jmp @@scope
+
+@@livaem:
+                ret
+    
+; al    - atribute
+; ds:si - string   
+; dx - line number  
+; di - position in the row
+; cx - string lenght
+write_line:
+
+                push si
+                mov si, dx
+                call translate_string
+                shl di, 1
+                add di, si
+                pop si
+
+                mov dl, al
+                mov bx, vram_location
+                mov es, bx 
+
+                test cx,cx
+                jz @@livaem
+                cld 
+    
+@@scope:        lodsb
+                stosb
+                mov es:[di], dl
+                inc di
+                loop @@scope 
+@@livaem:
+                ret
+
+; ========================= FRAME =========================
+
 ;ch - height 
 ;cl - length 
-;si - style_number 
 ;return 
-;
+;   ah - start_height 
+
 draw_frame:
 
                 mov bx, cx
@@ -74,42 +222,13 @@ draw_frame:
                 sub dh, bh
                 add dl, bh
 
-                mov ax, 2020h
+                push dx ; for return 
+
                 call draw_box
+                
+                pop ax
 
                 ret
-
-
-; ax    - atribute
-; ds:si - string   
-; dx - line number  
-; di - position in the row
-; cx - string lenght
-write_line:
-
-                push si
-                mov si, dx
-                call translate_string
-                shl di, 1
-                add di, si
-                pop si
-
-                mov dx, ax
-                mov bx, vram_location
-                mov es, bx 
-
-                test cx,cx
-                jz @@livaem
-                cld 
-    
-@@scope:        lodsb
-                stosb
-                mov es:[di], dx
-                inc di
-                loop @@scope 
-@@livaem:
-                ret
-
 
 ; ax - character(ASCII table) with atribute
 ; ch - x min  
@@ -168,6 +287,38 @@ draw_horizontal:
 @@scope:                               
                 mov word ptr es:[bx], ax
                 add bx, 2 
+                loop @@scope
+
+                ret
+
+; ax - character(ASCII table) with atribute
+; si - column number 
+; cl - start position 
+; ch - end position 
+draw_vertical:  
+
+                mov bx, vram_location        
+                mov es, bx              ;vram_location -> es
+
+                xor bx, bx
+                xor dx, dx
+                mov bl, cl  
+                mov dl, cl
+                shl dx, 1
+                shl bx, 3
+                add bx, dx
+                shl bx, 4
+                
+                shl si, 1 
+                add bx, si
+
+                sub ch, cl  
+                shr cx, 8
+                add cx, 1
+
+@@scope:                               
+                mov word ptr es:[bx], ax
+                add bx, 160 
                 loop @@scope
 
                 ret

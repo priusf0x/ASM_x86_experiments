@@ -1,4 +1,4 @@
-Turbo Assembler	 Version 4.1	    02/10/26 23:26:57	    Page 1
+Turbo Assembler	 Version 4.1	    02/11/26 01:31:16	    Page 1
 drawer.asm
 
 
@@ -33,178 +33,351 @@ drawer.asm
      28	      =B800		     vram_location   equ 0B800h
      29	      =0028		     center_x	     equ 40
      30	      =000D		     center_y	     equ 13
-     31
-     32	*100			     rect_style	 struc
-     33	*000  01*(01)				     filling db	FG_BLUE
-     34	*001  01*(04)				     frame   db	FG_RED
-     35	*002					 ends
-     36
-     37				     ; =========================================================
+     31	      =002F		     separator	     equ '/'
+     32	      =0007		     text_atribute   equ FG_BLUE xor FG_GREEN xor FG_RED
+     33
+     34	*100			     rect_style	 struc
+     35	*000  01*(01)				     filling db	FG_BLUE
+     36	*001  01*(04)				     frame   db	FG_RED
+     37	*002					 ends
      38
-     39	0100			     __start__:
-     40
-     41	0100  B5 02				     mov ch, 2
-     42	0102  B1 0A				     mov cl, 10
-     43
-     44	0104  E8 0004				     call draw_frame
-     45
-     46						     __exit__
-1    47	0107  B4 4C				     mov ah, 4ch
-1    48	0109  CD 21				     int 21h
-     49
-     50	010B			     .data
-     51	0000			     FRAME_STYLES:
-     52	0000  10 40		     WHITE_ROSE	rect_style <BG_BLUE, BG_RED>
-     53	0002			     .code
-     54
-     55				     ; ======================= FUNCTIONS ========================
-     56
-     57				     ;ax -
-Turbo Assembler	 Version 4.1	    02/10/26 23:26:57	    Page 2
+     39
+     40				     pushaem   macro
+     41						     push ax
+     42						     push bx
+     43						     push cx
+     44						     push dx
+     45						     push di
+     46						     push si
+     47					     endm
+     48
+     49				     popaem    macro
+     50						     pop si
+     51						     pop di
+     52						     pop dx
+     53						     pop cx
+     54						     pop bx
+     55						     pop ax
+     56					     endm
+     57
+Turbo Assembler	 Version 4.1	    02/11/26 01:31:16	    Page 2
 drawer.asm
 
 
 
-     58				     ;ch - height
-     59				     ;cl - length
-     60				     ;si - style_number
-     61				     ;return
-     62				     ;
-     63	010B			     draw_frame:
-     64
-     65	010B  8B D9				     mov bx, cx
+     58				     ; =========================================================
+     59
+     60	0100			     __start__:
+     61
+     62
+     63	0100  B8 2020				     mov ax, 2020h
+     64	0103  B5 02				     mov ch, 2
+     65	0105  B1 0A				     mov cl, 10
      66
-     67	010D  D0 EF				     shr bh, 1
-     68	010F  D0 EB				     shr bl, 1
-     69	0111  81 C3 0101			     add bx, 0101h
-     70
-     71				     ; bh: height / 2 +	1 : length / 2 + 1
-     72
-     73	0115  B5 28				     mov ch, center_x
-     74	0117  B1 28				     mov cl, center_x
+     67	0107  E8 007D				     call draw_frame
+     68
+     69	010A  BE 0081				     mov si, 81h
+     70	010D  E8 0047				     call print_text
+     71
+     72						     __exit__
+1    73	0110  B4 4C				     mov ah, 4ch
+1    74	0112  CD 21				     int 21h
      75
-     76	0119  B6 0D				     mov dh, center_y
-     77	011B  B2 0D				     mov dl, center_y
-     78
-     79	011D  2A EB				     sub ch, bl
-     80	011F  02 CB				     add cl, bl
-     81
-     82	0121  2A F7				     sub dh, bh
-     83	0123  02 D7				     add dl, bh
+     76	0114			     .data
+     77	0000			     FRAME_STYLES:
+     78	0000  10 40		     WHITE_ROSE	rect_style <BG_BLUE, BG_RED>
+     79	0002			     .code
+     80
+     81				     ; ======================= FUNCTIONS ========================
+     82
+     83				     ; ==================== STRING FUNCTION =====================
      84
-     85	0125  B8 2020				     mov ax, 2020h
-     86	0128  E8 0021				     call draw_box
-     87
-     88	012B  C3				     ret
-     89
+     85				     ;si - string ptr
+     86				     ;return
+     87				     ;	 ax - string length
+     88				     ;	 si - skipped until separator or 0Dh
+     89	0114			     strlen:
      90
-     91				     ; ax    - atribute
-     92				     ; ds:si - string
-     93				     ; dx - line number
-     94				     ; di - position in	the row
-     95				     ; cx - string lenght
-     96	012C			     write_line:
-     97
-     98	012C  56				     push si
-     99	012D  8B F2				     mov si, dx
-    100	012F  E8 003C				     call translate_string
-    101	0132  D1 E7				     shl di, 1
-    102	0134  03 FE				     add di, si
-    103	0136  5E				     pop si
+     91	0114  33 C0				     xor ax, ax
+     92
+     93	0116			     @@scope:
+     94	0116  8A 1C				     mov bl, [si]
+     95	0118  46				     inc si
+     96	0119  80 FB 2F				     cmp bl, separator
+     97	011C  74 08				     je	@@livaem
+     98	011E  80 FB 0D				     cmp bl, 0Dh
+     99	0121  74 03				     je	@@livaem
+    100	0123  40				     inc ax
+    101	0124  EB F0				     jmp @@scope
+    102	0126			     @@livaem:
+    103	0126  C3				     ret
     104
-    105	0137  8B D0				     mov dx, ax
-    106	0139  BB B800				     mov bx, vram_location
-    107	013C  8E C3				     mov es, bx
-    108
-    109	013E  85 C9				     test cx,cx
-    110	0140  74 09				     jz	@@livaem
-    111	0142  FC				     cld
+    105				     ;si - string ptr
+    106				     ;al - symbol
+    107				     ;return
+    108				     ;	 cx - symbol_amount
+    109	0127			     count_sumbols:
+    110
+    111	0127  33 C9				     xor cx,cx
     112
-    113	0143  AC		     @@scope:	     lodsb
-    114	0144  AA				     stosb
-Turbo Assembler	 Version 4.1	    02/10/26 23:26:57	    Page 3
+    113	0129			     @@scope:
+    114	0129  8A 1C				     mov bl, [si]
+Turbo Assembler	 Version 4.1	    02/11/26 01:31:16	    Page 3
 drawer.asm
 
 
 
-    115	0145  26: 89 15				     mov es:[di], dx
-    116	0148  47				     inc di
-    117	0149  E2 F8				     loop @@scope
-    118	014B			     @@livaem:
-    119	014B  C3				     ret
+    115	012B  46				     inc si
+    116	012C  80 FB 0D				     cmp bl, 0Dh
+    117	012F  74 06				     je	@@livaem
+    118	0131  3A D8				     cmp bl, al
+    119	0133  74 03				     je	@@increment
     120
-    121
-    122				     ; ax - character(ASCII table) with	atribute
-    123				     ; ch - x min
-    124				     ; cl - x max
-    125				     ; dh - y min
-    126				     ; dl - y max
-    127	014C			     draw_box:
+    121	0135  EB F2				     jmp @@scope
+    122	0137			     @@livaem:
+    123	0137  C3				     ret
+    124
+    125	0138			     @@increment:
+    126	0138  41				     inc cx
+    127	0139  EB EE				     jmp @@scope
     128
-    129	014C  33 F6				     xor si,si
-    130	014E			     @@scope:
-    131	014E  8B F2				     mov si, dx
-    132	0150  D1 EE D1 EE D1 EE	D1+		     shr si, 8
-    133	      EE D1 EE D1 EE D1	EE+
-    134	      D1 EE
-    135	0160  8B F9				     mov di, cx
-    136	0162  E8 001E				     call draw_horizontal
-    137	0165  8B CF				     mov cx, di
-    138	0167  FE C6				     inc dh
-    139	0169  3A F2				     cmp dh,dl
-    140	016B  76 E1				     jbe @@scope
-    141
-    142	016D  C3				     ret
-    143
-    144				     ; translates string number	in offset
-    145				     ; si - multiply on	160
-    146	016E			     translate_string:
-    147
-    148	016E  8B DE				     mov bx, si		     ;mul on 160
-    149	0170  D1 E3				     shl bx, 1
-    150	0172  D1 E6 D1 E6 D1 E6			     shl si, 3
-    151	0178  03 F3				     add si, bx		     ; si * 10
-    152	017A  D1 E6 D1 E6 D1 E6	D1+		     shl si, 4		     ; si * 16
-    153	      E6
+    129
+    130				     ;al - height
+    131				     ;si - string ptr
+    132	013B			     write_string_centered:
+    133
+    134	013B  50				     push ax
+    135	013C  56				     push si
+    136
+    137	013D  E8 FFD4				     call strlen
+    138	0140  8B C8				     mov cx, ax
+    139
+    140	0142  5E				     pop si
+    141	0143  58				     pop ax
+    142
+    143	0144  33 D2				     xor dx, dx
+    144	0146  8A D4				     mov dl, ah
+    145	0148  BF 0028				     mov di, center_x
+    146	014B  8B D9				     mov bx, cx
+    147	014D  D1 EB				     shr bx, 1
+    148	014F  2B FB				     sub di, bx
+    149	0151  B0 07				     mov al, text_atribute
+    150
+    151	0153  E8 0011				     call write_line
+    152
+    153	0156  C3				     ret
     154
-    155	0182  C3				     ret
+    155				     ; //TODO -	как то атрибуты	вставить
     156
-    157
-    158				     ; ax - character(ASCII table) with	atribute
-    159				     ; si - line number
-    160				     ; ch - start position
-    161				     ; cl - end	position
-    162	0183			     draw_horizontal:
-    163
-    164	0183  E8 FFE8				     call translate_string
-    165
-    166	0186  BB B800				     mov bx, vram_location
-    167	0189  8E C3				     mov es, bx		     ;vram_location -> es
-    168
-    169	018B  33 DB				     xor bx, bx
-    170	018D  02 DD				     add bl, ch
-    171	018F  02 DD				     add bl, ch
-Turbo Assembler	 Version 4.1	    02/10/26 23:26:57	    Page 4
+    157				     ;ah - height
+    158				     ;si - text
+    159	0157			     print_text:
+    160
+    161	0157			     @@scope:
+    162
+    163	0157  E8 FFE1				     call write_string_centered
+    164	015A  8A 1C				     mov bl, [si]
+    165	015C  80 FB 0D				     cmp bl, 0Dh
+    166	015F  74 05				     je	@@livaem
+    167	0161  46				     inc si
+    168	0162  FE C4				     inc ah
+    169	0164  EB F1				     jmp @@scope
+    170
+    171	0166			     @@livaem:
+Turbo Assembler	 Version 4.1	    02/11/26 01:31:16	    Page 4
 drawer.asm
 
 
 
-    172	0191  2A CD				     sub cl, ch
-    173	0193  32 ED				     xor ch, ch
-    174	0195  03 DE				     add bx, si
+    172	0166  C3				     ret
+    173
+    174
     175
-    176	0197  FC				     cld
-    177	0198  41				     inc cx
-    178
-    179	0199			     @@scope:
-    180	0199  26: 89 07				     mov word ptr es:[bx], ax
-    181	019C  83 C3 02				     add bx, 2
-    182	019F  E2 F8				     loop @@scope
-    183
-    184	01A1  C3				     ret
-    185
-    186				     end __start__
-Turbo Assembler	 Version 4.1	    02/10/26 23:26:57	    Page 5
+    176				     ; al    - atribute
+    177				     ; ds:si - string
+    178				     ; dx - line number
+    179				     ; di - position in	the row
+    180				     ; cx - string lenght
+    181	0167			     write_line:
+    182
+    183	0167  56				     push si
+    184	0168  8B F2				     mov si, dx
+    185	016A  E8 005C				     call translate_string
+    186	016D  D1 E7				     shl di, 1
+    187	016F  03 FE				     add di, si
+    188	0171  5E				     pop si
+    189
+    190	0172  8A D0				     mov dl, al
+    191	0174  BB B800				     mov bx, vram_location
+    192	0177  8E C3				     mov es, bx
+    193
+    194	0179  85 C9				     test cx,cx
+    195	017B  74 09				     jz	@@livaem
+    196	017D  FC				     cld
+    197
+    198	017E  AC		     @@scope:	     lodsb
+    199	017F  AA				     stosb
+    200	0180  26: 88 15				     mov es:[di], dl
+    201	0183  47				     inc di
+    202	0184  E2 F8				     loop @@scope
+    203	0186			     @@livaem:
+    204	0186  C3				     ret
+    205
+    206				     ; ========================= FRAME =========================
+    207
+    208				     ;ax -
+    209				     ;ch - height
+    210				     ;cl - length
+    211				     ;si - style_number
+    212				     ;return
+    213				     ;	 ah - start_height
+    214
+    215	0187			     draw_frame:
+    216
+    217	0187  8B D9				     mov bx, cx
+    218
+    219	0189  D0 EF				     shr bh, 1
+    220	018B  D0 EB				     shr bl, 1
+    221	018D  81 C3 0101			     add bx, 0101h
+    222
+    223				     ; bh: height / 2 +	1 : length / 2 + 1
+    224
+    225	0191  B5 28				     mov ch, center_x
+    226	0193  B1 28				     mov cl, center_x
+    227
+    228	0195  B6 0D				     mov dh, center_y
+Turbo Assembler	 Version 4.1	    02/11/26 01:31:16	    Page 5
+drawer.asm
+
+
+
+    229	0197  B2 0D				     mov dl, center_y
+    230
+    231	0199  2A EB				     sub ch, bl
+    232	019B  02 CB				     add cl, bl
+    233
+    234	019D  2A F7				     sub dh, bh
+    235	019F  02 D7				     add dl, bh
+    236
+    237	01A1  52				     push dx ; for return
+    238
+    239	01A2  E8 0002				     call draw_box
+    240
+    241	01A5  58				     pop ax
+    242
+    243	01A6  C3				     ret
+    244
+    245				     ; ax - character(ASCII table) with	atribute
+    246				     ; ch - x min
+    247				     ; cl - x max
+    248				     ; dh - y min
+    249				     ; dl - y max
+    250	01A7			     draw_box:
+    251
+    252	01A7  33 F6				     xor si,si
+    253	01A9			     @@scope:
+    254	01A9  8B F2				     mov si, dx
+    255	01AB  D1 EE D1 EE D1 EE	D1+		     shr si, 8
+    256	      EE D1 EE D1 EE D1	EE+
+    257	      D1 EE
+    258	01BB  8B F9				     mov di, cx
+    259	01BD  E8 001E				     call draw_horizontal
+    260	01C0  8B CF				     mov cx, di
+    261	01C2  FE C6				     inc dh
+    262	01C4  3A F2				     cmp dh,dl
+    263	01C6  76 E1				     jbe @@scope
+    264
+    265	01C8  C3				     ret
+    266
+    267				     ; translates string number	in offset
+    268				     ; si - multiply on	160
+    269	01C9			     translate_string:
+    270
+    271	01C9  8B DE				     mov bx, si		     ;mul on 160
+    272	01CB  D1 E3				     shl bx, 1
+    273	01CD  D1 E6 D1 E6 D1 E6			     shl si, 3
+    274	01D3  03 F3				     add si, bx		     ; si * 10
+    275	01D5  D1 E6 D1 E6 D1 E6	D1+		     shl si, 4		     ; si * 16
+    276	      E6
+    277
+    278	01DD  C3				     ret
+    279
+    280
+    281				     ; ax - character(ASCII table) with	atribute
+    282				     ; si - line number
+    283				     ; ch - start position
+    284				     ; cl - end	position
+    285	01DE			     draw_horizontal:
+Turbo Assembler	 Version 4.1	    02/11/26 01:31:16	    Page 6
+drawer.asm
+
+
+
+    286
+    287	01DE  E8 FFE8				     call translate_string
+    288
+    289	01E1  BB B800				     mov bx, vram_location
+    290	01E4  8E C3				     mov es, bx		     ;vram_location -> es
+    291
+    292	01E6  33 DB				     xor bx, bx
+    293	01E8  02 DD				     add bl, ch
+    294	01EA  02 DD				     add bl, ch
+    295	01EC  2A CD				     sub cl, ch
+    296	01EE  32 ED				     xor ch, ch
+    297	01F0  03 DE				     add bx, si
+    298
+    299	01F2  FC				     cld
+    300	01F3  41				     inc cx
+    301
+    302	01F4			     @@scope:
+    303	01F4  26: 89 07				     mov word ptr es:[bx], ax
+    304	01F7  83 C3 02				     add bx, 2
+    305	01FA  E2 F8				     loop @@scope
+    306
+    307	01FC  C3				     ret
+    308
+    309				     ; ax - character(ASCII table) with	atribute
+    310				     ; si - column number
+    311				     ; cl - start position
+    312				     ; ch - end	position
+    313	01FD			     draw_vertical:
+    314
+    315	01FD  BB B800				     mov bx, vram_location
+    316	0200  8E C3				     mov es, bx		     ;vram_location -> es
+    317
+    318	0202  33 DB				     xor bx, bx
+    319	0204  33 D2				     xor dx, dx
+    320	0206  8A D9				     mov bl, cl
+    321	0208  8A D1				     mov dl, cl
+    322	020A  D1 E2				     shl dx, 1
+    323	020C  D1 E3 D1 E3 D1 E3			     shl bx, 3
+    324	0212  03 DA				     add bx, dx
+    325	0214  D1 E3 D1 E3 D1 E3	D1+		     shl bx, 4
+    326	      E3
+    327
+    328	021C  D1 E6				     shl si, 1
+    329	021E  03 DE				     add bx, si
+    330
+    331	0220  2A E9				     sub ch, cl
+    332	0222  D1 E9 D1 E9 D1 E9	D1+		     shr cx, 8
+    333	      E9 D1 E9 D1 E9 D1	E9+
+    334	      D1 E9
+    335	0232  83 C1 01				     add cx, 1
+    336
+    337	0235			     @@scope:
+    338	0235  26: 89 07				     mov word ptr es:[bx], ax
+    339	0238  81 C3 00A0			     add bx, 160
+    340	023C  E2 F7				     loop @@scope
+    341
+    342	023E  C3				     ret
+Turbo Assembler	 Version 4.1	    02/11/26 01:31:16	    Page 7
+drawer.asm
+
+
+
+    343
+    344				     end __start__
+Turbo Assembler	 Version 4.1	    02/11/26 01:31:16	    Page 8
 Symbol Table
 
 
@@ -212,15 +385,23 @@ Symbol Table
 
 Symbol Name			  Type	 Value
 
-??DATE				  Text	 "02/10/26"
+??DATE				  Text	 "02/11/26"
 ??FILENAME			  Text	 "drawer  "
-??TIME				  Text	 "23:26:57"
+??TIME				  Text	 "01:31:16"
 ??VERSION			  Number 040A
 @32BIT				  Text	 0
-@@LIVAEM			  Near	 DGROUP:014B
-@@SCOPE				  Near	 DGROUP:0143
-@@SCOPE				  Near	 DGROUP:014E
-@@SCOPE				  Near	 DGROUP:0199
+@@INCREMENT			  Near	 DGROUP:0138
+@@LIVAEM			  Near	 DGROUP:0126
+@@LIVAEM			  Near	 DGROUP:0137
+@@LIVAEM			  Near	 DGROUP:0166
+@@LIVAEM			  Near	 DGROUP:0186
+@@SCOPE				  Near	 DGROUP:0116
+@@SCOPE				  Near	 DGROUP:0129
+@@SCOPE				  Near	 DGROUP:0157
+@@SCOPE				  Near	 DGROUP:017E
+@@SCOPE				  Near	 DGROUP:01A9
+@@SCOPE				  Near	 DGROUP:01F4
+@@SCOPE				  Near	 DGROUP:0235
 @CODE				  Text	 DGROUP
 @CODESIZE			  Text	 0
 @CPU				  Text	 0101H
@@ -238,22 +419,36 @@ BG_GREEN			  Number 0020
 BG_RED				  Number 0040
 CENTER_X			  Number 0028
 CENTER_Y			  Number 000D
-DRAW_BOX			  Near	 DGROUP:014C
-DRAW_FRAME			  Near	 DGROUP:010B
-DRAW_HORIZONTAL			  Near	 DGROUP:0183
+COUNT_SUMBOLS			  Near	 DGROUP:0127
+DRAW_BOX			  Near	 DGROUP:01A7
+DRAW_FRAME			  Near	 DGROUP:0187
+DRAW_HORIZONTAL			  Near	 DGROUP:01DE
+DRAW_VERTICAL			  Near	 DGROUP:01FD
 FG_BLUE				  Number 0001
 FG_BRIGHT			  Number 0008
 FG_GREEN			  Number 0002
 FG_RED				  Number 0004
 FRAME_STYLES			  Near	 DGROUP:0000
-TRANSLATE_STRING		  Near	 DGROUP:016E
+PRINT_TEXT			  Near	 DGROUP:0157
+SEPARATOR			  Number 002F
+STRLEN				  Near	 DGROUP:0114
+TEXT_ATRIBUTE			  Number 0007
+TRANSLATE_STRING		  Near	 DGROUP:01C9
 VRAM_LOCATION			  Number B800
 WHITE_ROSE			  Struct DGROUP:0000 RECT_STYLE
-WRITE_LINE			  Near	 DGROUP:012C
+WRITE_LINE			  Near	 DGROUP:0167
+WRITE_STRING_CENTERED		  Near	 DGROUP:013B
 __START__			  Near	 DGROUP:0100
+Turbo Assembler	 Version 4.1	    02/11/26 01:31:16	    Page 9
+Symbol Table
+
+
+
 
 Macro Name
 
+POPAEM
+PUSHAEM
 __EXIT__
 
 Structure Name			  Type	Offset
@@ -261,15 +456,10 @@ Structure Name			  Type	Offset
 RECT_STYLE
  FILLING			  Byte	 0000
  FRAME				  Byte	 0001
-Turbo Assembler	 Version 4.1	    02/10/26 23:26:57	    Page 6
-Symbol Table
-
-
-
 
 Groups & Segments		  Bit Size Align  Combine Class
 
 DGROUP				  Group
   _DATA				  16  0002 Word	  Public  DATA
-  _TEXT				  16  01A2 Word	  Public  CODE
+  _TEXT				  16  023F Word	  Public  CODE
 
