@@ -23,13 +23,24 @@ vram_location   equ 0B800h
 center_x        equ 40
 center_y        equ 13
 separator       equ '/'
-text_atribute   equ FG_BLUE xor FG_GREEN xor FG_RED
 
-rect_style  struc
-                filling       db ?
-                frame-style   db ?
-                text_atribute db ?
-            ends
+rect_style      struc
+                        global_filling  db ?
+                        global_style    db ?
+                        global_atribute db ?
+                ends
+
+rect_filling    struc
+                        filling_ul db ?
+                        filling_u  db ?
+                        filling_ur db ?
+                        filling_ml db ?
+                        filling_m  db ?
+                        filling_mr db ?
+                        filling_dl db ?
+                        filling_d  db ?
+                        filling_dr db ?
+                ends
 
 
 pushaem   macro 
@@ -54,10 +65,8 @@ popaem    macro
 
 __start__:	
 
-
-                mov ax, 2020h
-                mov ch, 2
-                mov cl, 10
+                mov ch, 05h
+                mov cl, 0ah
 
                 call draw_frame
 
@@ -67,7 +76,8 @@ __start__:
                 __exit__
 
 .data 
-FRAME_STYLE rect_style <BG_BLUE, BG_RED>        
+FRAME_STYLE rect_style <BG_BLUE, BG_GREEN, BG_BLUE xor FG_BLUE xor FG_GREEN xor FG_RED>        
+FILLING rect_filling <43d,45d,43d,124d,32d,124d,43d,45d,43d>
 .code
 
 ; ======================= FUNCTIONS ========================
@@ -138,13 +148,11 @@ write_string_centered:
                 mov bx, cx
                 shr bx, 1
                 sub di, bx
-                mov al, text_atribute
+                mov al, FRAME_STYLE.global_atribute
 
                 call write_line
 
                 ret
-
-; //TODO - как то атрибуты вставить 
 
 ;ah - height 
 ;si - text 
@@ -163,6 +171,9 @@ print_text:
 @@livaem:
                 ret
     
+
+
+
 ; al    - atribute
 ; ds:si - string   
 ; dx - line number  
@@ -193,7 +204,7 @@ write_line:
 @@livaem:
                 ret
 
-; ========================= FRAME =========================
+; ================== FRAME_FUNCTION =======================
 
 ;ch - height 
 ;cl - length 
@@ -202,13 +213,15 @@ write_line:
 
 draw_frame:
 
+; centering frame
+
                 mov bx, cx
 
                 shr bh, 1  
                 shr bl, 1
                 add bx, 0101h  
                     
-; bh: height / 2 + 1 : length / 2 + 1 
+; bh: height / 2 + 1 bl: length / 2 + 1 
                 
                 mov ch, center_x
                 mov cl, center_x
@@ -222,13 +235,145 @@ draw_frame:
                 sub dh, bh
                 add dl, bh
 
-                push dx ; for return 
+;               (ch,dh)           (cl,dh)    
+;       
+;               (ch,dl)           (cl,dl)
 
+; drawing frame filling
+
+                push dx ; for returning first y 
+                mov ah, FRAME_STYLE.global_filling ; atribute for filling 
+                mov al, FILLING.filling_m; 
+                pushaem 
                 call draw_box
-                
-                pop ax
+                popaem
+
+; drawing borders
+
+                mov ah, FRAME_STYLE.global_style  ;atribute for frame  
+
+                call draw_vertical_borders
+                call draw_horizontal_borders
+                call draw_corners
+
+                pop ax ; pushes first frame string
+                ret
+        
+; ch - x min  
+; cl - x max 
+; dh - y min 
+; dl - y max 
+draw_vertical_borders:
+
+                pushaem  
+                xor bx,bx 
+                mov bl, ch
+                mov ch, dh 
+                mov cl, dl
+                mov si, bx 
+                dec si
+                mov al, FILLING.filling_ml
+                call draw_vertical
+                popaem 
+
+                pushaem
+                xor bx, bx 
+                mov bl, cl
+                mov ch, dh
+                mov cl, dl
+                mov si, bx 
+                inc si
+                mov al, FILLING.filling_ml
+                call draw_vertical
+                popaem
 
                 ret
+
+
+; ch - x min  
+; cl - x max 
+; dh - y min 
+; dl - y max 
+draw_horizontal_borders: 
+
+                pushaem                
+                xor bx, bx 
+                mov bl, dh
+                mov si, bx 
+                dec si
+                mov al, FILLING.filling_u
+                call draw_horizontal
+                popaem                
+        
+                pushaem                
+                xor bx, bx 
+                mov bl, dl
+                mov si, bx 
+                inc si
+                mov al, FILLING.filling_u
+                call draw_horizontal
+                popaem     
+
+                ret   
+
+draw_corners:
+
+                mov bx, vram_location
+                mov es, bx
+
+;               (ch,dh)           (cl,dh)       dh*160 in stack
+;       
+;               (ch,dl)           (cl,dl)       dl*160 in dx 
+
+                xor bx, bx
+                mov bl, dh
+                xor dh, dh
+
+                mov si, bx  
+                dec si
+                call translate_string
+                push si  
+
+                mov si, dx  
+                inc si
+                call translate_string
+                mov dx, si
+
+                dec ch
+                inc cl
+                shl cx, 1
+                
+                mov al, FILLING.filling_ul
+                xor bx, bx 
+                mov bl, ch
+                add bx, dx 
+                mov es:[bx], ax 
+                
+                mov al, FILLING.filling_ur
+                xor bx, bx 
+                mov bl, cl
+                add bx, dx 
+                mov es:[bx], ax 
+                
+                pop dx 
+
+                mov al, FILLING.filling_dl
+                xor bx, bx 
+                mov bl, ch
+                add bx, dx 
+                mov es:[bx], ax 
+                
+                mov al, FILLING.filling_dr
+                xor bx, bx 
+                mov bl, cl
+                add bx, dx 
+                mov es:[bx], ax 
+
+                ret        
+                
+
+
+
 
 ; ax - character(ASCII table) with atribute
 ; ch - x min  
@@ -293,17 +438,17 @@ draw_horizontal:
 
 ; ax - character(ASCII table) with atribute
 ; si - column number 
-; cl - start position 
-; ch - end position 
+; ch - start position 
+; cl - end position 
 draw_vertical:  
 
                 mov bx, vram_location        
                 mov es, bx              ;vram_location -> es
-
+; //TODO copypast 
                 xor bx, bx
                 xor dx, dx
-                mov bl, cl  
-                mov dl, cl
+                mov bl, ch  
+                mov dl, ch
                 shl dx, 1
                 shl bx, 3
                 add bx, dx
@@ -312,8 +457,8 @@ draw_vertical:
                 shl si, 1 
                 add bx, si
 
-                sub ch, cl  
-                shr cx, 8
+                sub cl, ch  
+                xor ch, ch
                 add cx, 1
 
 @@scope:                               
