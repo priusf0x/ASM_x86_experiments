@@ -12,10 +12,14 @@ FG_GREEN        equ 00000010b
 FG_RED          equ 00000100b
 FG_BRIGHT       equ 00001000b
 
+FG_WHITE        equ FG_BLUE xor FG_GREEN xor FG_RED xor FG_BRIGHT
+
 BG_BLUE         equ 00010000b
 BG_GREEN        equ 00100000b
 BG_RED          equ 01000000b
 BG_BLINK        equ 10000000b
+
+BG_WHITE        equ BG_BLUE xor BG_GREEN xor BG_RED
 
 ; ======================= HELPERS =========================
 
@@ -65,41 +69,107 @@ popaem    macro
 
 __start__:	
 
-                mov ch, 05h
-                mov cl, 0ah
+                mov si, [COMMAND_LINE]
+                call skip_spaces
+                mov [COMMAND_LINE], si
 
+                call set_style
+                mov [COMMAND_LINE], si
+                
+                mov si, [COMMAND_LINE]
+                call skip_spaces
+                mov [COMMAND_LINE], si
+
+                mov si, [COMMAND_LINE]
+                call get_size
+
+                mov si, [COMMAND_LINE]
                 call draw_frame
 
-                mov si, 81h
+                mov si, [COMMAND_LINE]
                 call print_text
 
                 __exit__
 
 .data 
-FRAME_STYLE rect_style <BG_BLUE, BG_GREEN, BG_BLUE xor FG_BLUE xor FG_GREEN xor FG_RED>        
-FILLING rect_filling <43d,45d,43d,124d,32d,124d,43d,45d,43d>
+COMMAND_LINE    dw 81h
+FRAME_STYLE     rect_style <BG_BLUE, BG_GREEN, BG_BLUE>        
+FILLING         rect_filling <43d,45d,43d,124d,32d,124d,43d,45d,43d>
+STYLES:
+STYLE_9         rect_style <BG_BLUE, BG_GREEN, BG_BLUE>        
+STYLE_1         rect_style <BG_RED , BG_WHITE, BG_BLUE>        
+STYLE_2         rect_style <      0, BG_WHITE, FG_WHITE>        
 .code
 
 ; ======================= FUNCTIONS ========================
 
 ; ==================== STRING FUNCTION =====================
 
-;si - string ptr
-;return 
-;   ax - string length 
-;   si - skipped until separator or 0Dh
-strlen:
+;ds:si - command line ptr
+set_style:
 
                 xor ax, ax
+                mov al, [si]
+                sub ax, "0"
+                mov bx, ax 
+                shl ax, 1
+                add bx, ax 
+                lea bx, [bx + offset STYLES]
+
+                mov al, [bx]
+                mov FRAME_STYLE.global_filling, al
+                
+                mov al, [bx + 1]
+                mov FRAME_STYLE.global_style, al
+                
+                mov al, [bx + 2]
+                mov FRAME_STYLE.global_atribute, al
+
+                inc si
+                mov bx, offset FILLING
+                mov cx, 9h
+@@set_param:
+                mov al, [si]
+                mov [bx], al  
+                inc si
+                inc bx
+                loop @@set_param 
+
+                ret 
+
+;ds:si - string ptr 
+skip_spaces:
 
 @@scope:
                 mov bl, [si]
+                cmp bl, 20h
+                jne @@livaem
+                cmp bl, 0Dh
+                je @@livaem
                 inc si
+                jmp @@scope 
+@@livaem:
+                ret
+
+
+
+
+;ds:si - string ptr
+;return 
+;   al - string length 
+;   si - skipped until separator or 0Dh
+strlen:
+
+                xor al, al
+
+@@scope:
+                mov bl, [si]
                 cmp bl, separator
                 je @@livaem
                 cmp bl, 0Dh
                 je @@livaem
-                inc ax
+                inc al
+                inc si
                 jmp @@scope 
 @@livaem:
                 ret
@@ -108,7 +178,7 @@ strlen:
 ;al - symbol
 ;return 
 ;   cx - symbol_amount 
-count_sumbols:
+count_symbols:
 
                 xor cx,cx 
 
@@ -137,6 +207,7 @@ write_string_centered:
                 push si 
 
                 call strlen 
+                xor ah, ah
                 mov cx, ax
 
                 pop si 
@@ -204,6 +275,38 @@ write_line:
 @@livaem:
                 ret
 
+;ds:si - ptr to string with 0Dh ending 
+;        
+;return 
+;       ch - height 
+;       cl - length 
+get_size:
+
+                mov al, separator
+                mov di, si
+                call count_symbols
+                mov si, di
+                inc cx
+                shl cx, 8
+
+@@loop:
+                call strlen
+                cmp al, cl
+                ja @@new_lenght
+@@comeback:
+                mov bl, [si]
+                cmp bl, 0Dh
+                je @@livaem
+                inc si
+                jmp @@loop
+
+@@livaem:
+                ret
+                
+@@new_lenght:
+                mov cl, al
+                jmp @@comeback
+
 ; ================== FRAME_FUNCTION =======================
 
 ;ch - height 
@@ -219,7 +322,7 @@ draw_frame:
 
                 shr bh, 1  
                 shr bl, 1
-                add bx, 0101h  
+                inc bl
                     
 ; bh: height / 2 + 1 bl: length / 2 + 1 
                 
@@ -283,7 +386,7 @@ draw_vertical_borders:
                 mov cl, dl
                 mov si, bx 
                 inc si
-                mov al, FILLING.filling_ml
+                mov al, FILLING.filling_mr
                 call draw_vertical
                 popaem
 
@@ -310,7 +413,7 @@ draw_horizontal_borders:
                 mov bl, dl
                 mov si, bx 
                 inc si
-                mov al, FILLING.filling_u
+                mov al, FILLING.filling_d
                 call draw_horizontal
                 popaem     
 
@@ -343,20 +446,6 @@ draw_corners:
                 inc cl
                 shl cx, 1
                 
-                mov al, FILLING.filling_ul
-                xor bx, bx 
-                mov bl, ch
-                add bx, dx 
-                mov es:[bx], ax 
-                
-                mov al, FILLING.filling_ur
-                xor bx, bx 
-                mov bl, cl
-                add bx, dx 
-                mov es:[bx], ax 
-                
-                pop dx 
-
                 mov al, FILLING.filling_dl
                 xor bx, bx 
                 mov bl, ch
@@ -364,6 +453,20 @@ draw_corners:
                 mov es:[bx], ax 
                 
                 mov al, FILLING.filling_dr
+                xor bx, bx 
+                mov bl, cl
+                add bx, dx 
+                mov es:[bx], ax 
+                
+                pop dx 
+
+                mov al, FILLING.filling_ul
+                xor bx, bx 
+                mov bl, ch
+                add bx, dx 
+                mov es:[bx], ax 
+                
+                mov al, FILLING.filling_ur
                 xor bx, bx 
                 mov bl, cl
                 add bx, dx 
