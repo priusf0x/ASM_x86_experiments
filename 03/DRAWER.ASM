@@ -1,5 +1,6 @@
 .model tiny
 .code 
+.286
 org 100h
 locals @@ 
 
@@ -23,10 +24,11 @@ BG_WHITE        equ BG_BLUE xor BG_GREEN xor BG_RED
 
 ; ======================= HELPERS =========================
 
-vram_location   equ 0B800h
-center_x        equ 40
-center_y        equ 13
-separator       equ '/'
+VRAM_LOCATION   equ 0B800h
+CENTER_X        equ 40
+CENTER_Y        equ 13
+SEPARATOR       equ '/'
+NEW_LINE_OFFSET equ 160
 
 rect_style      struc
                         global_filling  db ?
@@ -46,529 +48,462 @@ rect_filling    struc
                         filling_dr db ?
                 ends
 
-
-pushaem   macro 
-                push ax 
-                push bx
-                push cx
-                push dx
-                push di
-                push si
-        endm
-        
-popaem    macro 
-                pop si
-                pop di
-                pop dx
-                pop cx
-                pop bx
-                pop ax
-        endm
-
 ; =========================================================
 
 __start__:	
 
-                mov si, [COMMAND_LINE]
-                call skip_spaces
-                mov [COMMAND_LINE], si
-
-                call set_style
-                mov [COMMAND_LINE], si
+                ;mov cl, ds:[bx + 80h]
+                ;mov ax, VRAM_LOCATION
+                ;mov es, ax
+                ;xor di, di 
+                ;mov si, 81h
+                ;
+                ;call write_text_centered
                 
-                mov si, [COMMAND_LINE]
-                call skip_spaces
-                mov [COMMAND_LINE], si
-
-                mov si, [COMMAND_LINE]
-                call get_size
-
-                mov si, [COMMAND_LINE]
-                call draw_frame
-
-                mov si, [COMMAND_LINE]
-                call print_text
+                mov cl, ds:[bx + 80h]
+                mov ax, VRAM_LOCATION
+                mov es, ax
+                mov ax, 1004h
+                mov bx, 2002h
+                mov dx, 1003h
+                mov cx, 00h
+                mov di, 320
+                
+                call draw_frame_line
 
                 __exit__
 
 .data 
-COMMAND_LINE    dw 81h
-FRAME_STYLE     rect_style <BG_BLUE, BG_GREEN, BG_BLUE>        
+command_line    dw 81h
+FRAME_STYLE     rect_style <BG_BLUE, BG_GREEN, BG_RED>        
 FILLING         rect_filling <43d,45d,43d,124d,32d,124d,43d,45d,43d>
 STYLES:
-STYLE_9         rect_style <BG_BLUE, BG_GREEN, BG_BLUE>        
+STYLE_0         rect_style <BG_BLUE, BG_GREEN, BG_BLUE>        
 STYLE_1         rect_style <BG_RED , BG_WHITE, BG_BLUE>        
 STYLE_2         rect_style <      0, BG_WHITE, FG_WHITE>        
-.code
 
 ; ======================= FUNCTIONS ========================
 
+.code
+
 ; ==================== STRING FUNCTION =====================
 
-;ds:si - command line ptr
-set_style:
+;;ds:si - command line ptr
+;set_style:
+;
+;                xor ax, ax
+;                mov al, [si]
+;                sub ax, "0"
+;                mov bx, ax 
+;                shl ax, 1
+;                add bx, ax 
+;                lea bx, [bx + offset STYLES]
+;
+;                mov al, [bx]
+;                mov FRAME_STYLE.global_filling, al
+;                
+;                mov al, [bx + 1]
+;                mov FRAME_STYLE.global_style, al
+;                
+;                mov al, [bx + 2]
+;                mov FRAME_STYLE.global_atribute, al
+;
+;                inc si
+;                mov bx, offset FILLING
+;                mov cx, 9h
+;@@set_param:
+;                mov al, [si]
+;                mov [bx], al  
+;                inc si
+;                inc bx
+;                loop @@set_param 
 
-                xor ax, ax
-                mov al, [si]
-                sub ax, "0"
-                mov bx, ax 
-                shl ax, 1
-                add bx, ax 
-                lea bx, [bx + offset STYLES]
+;                ret 
 
-                mov al, [bx]
-                mov FRAME_STYLE.global_filling, al
-                
-                mov al, [bx + 1]
-                mov FRAME_STYLE.global_style, al
-                
-                mov al, [bx + 2]
-                mov FRAME_STYLE.global_atribute, al
+; _________________________________________________________
+; Skip Spaces until not space symbol 
+;       
+; args: 
+;       es:di - input string 
+;       cx    - string length 
+;      
+; return: 
+;       di - skipped until separator 
+;       ci - si string length
+; delete:
+;       al
+; _________________________________________________________
 
-                inc si
-                mov bx, offset FILLING
-                mov cx, 9h
-@@set_param:
-                mov al, [si]
-                mov [bx], al  
-                inc si
-                inc bx
-                loop @@set_param 
-
-                ret 
-
-;ds:si - string ptr 
 skip_spaces:
 
-@@scope:
-                mov bl, [si]
-                cmp bl, 20h
-                jne @@livaem
-                cmp bl, 0Dh
-                je @@livaem
-                inc si
-                jmp @@scope 
-@@livaem:
+                cld
+                
+                mov al, 20h      
+                repe scasb
+
                 ret
 
+; _________________________________________________________
 
+; _________________________________________________________
+; Returns length of rhe ds:si string with separator 
+;       symbol 
+; args: 
+;       es:di - input string 
+;       cx    - string length 
+; return: 
+;       bx - string length 
+;       di - skipped until separator or EOL
+;       cx - length of new si string 
+; delete 
+;       ax
+; _________________________________________________________
 
-
-;ds:si - string ptr
-;return 
-;   al - string length 
-;   si - skipped until separator or 0Dh
 strlen:
 
-                xor al, al
+                mov bx, cx
+                test cx, cx 
+                jz @@skip  
+                
+                xor ax, ax
 
-@@scope:
-                mov bl, [si]
-                cmp bl, separator
-                je @@livaem
-                cmp bl, 0Dh
-                je @@livaem
-                inc al
-                inc si
-                jmp @@scope 
-@@livaem:
+                cld
+
+                mov al, separator
+                repne scasb
+                
+                jne @@skip 
+                inc cx 
+                dec di
+
+@@skip:
+                sub bx, cx
+@@leave:
                 ret
+                
+; _________________________________________________________
 
-;si - string ptr
-;al - symbol
-;return 
-;   cx - symbol_amount 
-count_symbols:
+; _________________________________________________________
+; Count amount of al(ASCII) symbols in string es:al 
+;      
+; args: 
+;       al    - symbol 
+;       es:si - input string 
+;       cx    - string length 
+;
+; return: 
+;       
+;       si - skipped until EOL
+;       cx - ds:si string length 
+;       dx - symbol amount 
+; _________________________________________________________
 
-                xor cx,cx 
+count_al_symbols_in_string:
 
-@@scope:
-                mov bl, [si]
-                inc si
-                cmp bl, 0Dh
-                je @@livaem
-                cmp bl, al
+                xor dx, dx 
+                cld
+
+@@continue:
+
+                repne scasb
                 je @@increment
-        
-                jmp @@scope 
-@@livaem:
+                
                 ret
 
-@@increment:
-                inc cx
-                jmp @@scope
+@@increment: 
+                inc dx
+                inc si
+                jmp @@continue
 
+; _________________________________________________________
+; Translates bx into string offset  
+;      
+; args: 
+;       bx - string number 
+;
+; return: 
+;       bx - new offset 
+; del 
+;       ax
+; _________________________________________________________
 
-;al - height
-;si - string ptr
+translate_string:
+
+                mov ax, bx 
+                shl bx, 1
+                shl ax, 3
+                add bx, ax              ; si * 10
+                shl bx, 4               ; si * 16
+                
+                ret
+
+; _________________________________________________________
+
+; _________________________________________________________
+; Write ds:si line with ah:al indent with offset es:si 
+;      
+; args: 
+;       cx    - printable string length 
+;       es:di - offset  
+;       ds:si - source 
+; returns:
+;       si - the next symbol after last written        
+;
+; delete:
+;       di, cx
+; _________________________________________________________
+
+write_line:
+ 
+                test cx, cx
+                jz @@leave
+
+                cld
+                mov ah, FRAME_STYLE.global_atribute
+
+@@scope:        lodsb
+                stosw
+                loop @@scope 
+@@leave:
+
+                ret
+    
+; _________________________________________________________
+; Write string with centering  
+;      
+; args: 
+;       cx    - string length 
+;       es:di - start_line offset    
+;       ds:si - source 
+; returns:
+;       si - the next symbol after last written        
+;
+; delete:
+;       di, cx, bx 
+; _________________________________________________________
+
 write_string_centered:
 
-                push ax
-                push si 
-
-                call strlen 
-                xor ah, ah
-                mov cx, ax
-
-                pop si 
-                pop ax
-
-                xor dx, dx
-                mov dl, ah
-                mov di, center_x
-                mov bx, cx
-                shr bx, 1
-                sub di, bx
-                mov al, FRAME_STYLE.global_atribute
+                add di, CENTER_X * 2
+                sub di, cx 
+                
+                and di, 0FFFFh - 1 
 
                 call write_line
 
                 ret
+; _________________________________________________________
 
-;ah - height 
-;si - text 
-print_text:
+; _________________________________________________________
+; Write text with centering  
+;      
+; args: 
+;       cx    - string length 
+;       es:di - start_line offset    
+;       ds:si - source 
+;
+; delete:
+;       ax, bx, cx, dx, di, si 
+; _________________________________________________________
+
+write_text_centered:
 
 @@scope:
-
-                call write_string_centered
-                mov bl, [si]
-                cmp bl, 0Dh
-                je @@livaem 
-                inc si
-                inc ah
-                jmp @@scope
-
-@@livaem:
-                ret
-    
-
-
-
-; al    - atribute
-; ds:si - string   
-; dx - line number  
-; di - position in the row
-; cx - string lenght
-write_line:
-
-                push si
-                mov si, dx
-                call translate_string
-                shl di, 1
-                add di, si
-                pop si
-
-                mov dl, al
-                mov bx, vram_location
-                mov es, bx 
-
-                test cx,cx
-                jz @@livaem
-                cld 
-    
-@@scope:        lodsb
-                stosb
-                mov es:[di], dl
-                inc di
-                loop @@scope 
-@@livaem:
-                ret
-
-;ds:si - ptr to string with 0Dh ending 
-;        
-;return 
-;       ch - height 
-;       cl - length 
-get_size:
-
-                mov al, separator
-                mov di, si
-                call count_symbols
-                mov si, di
-                inc cx
-                shl cx, 8
-
-@@loop:
-                call strlen
-                cmp al, cl
-                ja @@new_lenght
-@@comeback:
-                mov bl, [si]
-                cmp bl, 0Dh
-                je @@livaem
-                inc si
-                jmp @@loop
-
-@@livaem:
-                ret
                 
-@@new_lenght:
-                mov cl, al
-                jmp @@comeback
+                push cx 
+                push di 
+                push es 
 
-; ================== FRAME_FUNCTION =======================
+                mov ax, ds 
+                mov es, ax 
+                mov di, si 
 
-;ch - height 
-;cl - length 
-;return 
-;   ah - start_height 
+                call strlen 
+
+                pop es
+                pop di 
+                pop cx
+
+                sub cx, bx
+
+                push cx 
+                push di 
+                
+                mov cx, bx 
+                call write_string_centered
+
+                pop di 
+                pop cx
+
+                add di, NEW_LINE_OFFSET
+
+                test cx, cx 
+                jnz @@decrease
+
+                ret
+
+@@decrease:
+                inc si
+                dec cx 
+                jmp @@scope 
+                
+; _________________________________________________________
+    
+; ==================== DRAW_FUNCTION ======================
+
+; _________________________________________________________
+; Draws horizontal line with length of cx on es:di offset  
+;      
+; args: 
+;       ah    - atribute 
+;       al    - ASCII character
+;       cx    - string length 
+;       es:di - start point offset    
+;     
+; returns:
+;       di - new cursor position
+;
+; delete:
+;       cx
+; _________________________________________________________
+
+draw_horizontal:   
+
+                rep stosw
+
+                ret
+
+; _________________________________________________________
+; Draws horizontal line() with length of cx on es:di offset  
+;      
+; args: 
+;1st symbol:    ah    - atribute  
+;               al    - ASCII character 
+;2st symbol:    bh    - atribute  
+;               bl    - ASCII character 
+;3st symbol:    dh    - atribute  
+;               dl    - ASCII character 
+;
+;               cx    - string length 
+;               es:di - start point offset    
+;
+; delete:
+;       ax, bx, cx, di 
+; _________________________________________________________
+
+draw_frame_line:
+        
+                push cx 
+                mov cx, 1
+                call draw_horizontal
+        
+                pop cx 
+                mov ax, bx
+                call draw_horizontal
+                
+                mov cx, 1
+                mov ax, dx 
+                call draw_horizontal
+                
+                ret
+; _________________________________________________________
+
+; _________________________________________________________
+; Draws a frame   
+;      
+; args: 
+;               ch - height
+;               cl - length
+;               es:di - start point offset    
+;
+; delete:
+;       ax, bx, cx, dx, di, si
+; _________________________________________________________
 
 draw_frame:
 
-; centering frame
+;;;;;;;;;;;;;;;;;;;;;;;; saving cx ;;;;;;;;;;;;;;;;;;;;;;;;
 
-                mov bx, cx
-
-                shr bh, 1  
-                shr bl, 1
-                inc bl
-                    
-; bh: height / 2 + 1 bl: length / 2 + 1 
+                mov si, cx 
                 
-                mov ch, center_x
-                mov cl, center_x
+;;;;;;;;;;;;;;;;;;; drawing upper part ;;;;;;;;;;;;;;;;;;;;
 
-                mov dh, center_y
-                mov dl, center_y
-
-                sub ch, bl
-                add cl, bl
-
-                sub dh, bh
-                add dl, bh
-
-;               (ch,dh)           (cl,dh)    
-;       
-;               (ch,dl)           (cl,dl)
-
-; drawing frame filling
-
-                push dx ; for returning first y 
-                mov ah, FRAME_STYLE.global_filling ; atribute for filling 
-                mov al, FILLING.filling_m; 
-                pushaem 
-                call draw_box
-                popaem
-
-; drawing borders
-
-                mov ah, FRAME_STYLE.global_style  ;atribute for frame  
-
-                call draw_vertical_borders
-                call draw_horizontal_borders
-                call draw_corners
-
-                pop ax ; pushes first frame string
-                ret
-        
-; ch - x min  
-; cl - x max 
-; dh - y min 
-; dl - y max 
-draw_vertical_borders:
-
-                pushaem  
-                xor bx,bx 
-                mov bl, ch
-                mov ch, dh 
-                mov cl, dl
-                mov si, bx 
-                dec si
-                mov al, FILLING.filling_ml
-                call draw_vertical
-                popaem 
-
-                pushaem
-                xor bx, bx 
-                mov bl, cl
-                mov ch, dh
-                mov cl, dl
-                mov si, bx 
-                inc si
-                mov al, FILLING.filling_mr
-                call draw_vertical
-                popaem
-
-                ret
-
-
-; ch - x min  
-; cl - x max 
-; dh - y min 
-; dl - y max 
-draw_horizontal_borders: 
-
-                pushaem                
-                xor bx, bx 
-                mov bl, dh
-                mov si, bx 
-                dec si
-                mov al, FILLING.filling_u
-                call draw_horizontal
-                popaem                
-        
-                pushaem                
-                xor bx, bx 
-                mov bl, dl
-                mov si, bx 
-                inc si
-                mov al, FILLING.filling_d
-                call draw_horizontal
-                popaem     
-
-                ret   
-
-draw_corners:
-
-                mov bx, vram_location
-                mov es, bx
-
-;               (ch,dh)           (cl,dh)       dh*160 in stack
-;       
-;               (ch,dl)           (cl,dl)       dl*160 in dx 
-
-                xor bx, bx
-                mov bl, dh
-                xor dh, dh
-
-                mov si, bx  
-                dec si
-                call translate_string
-                push si  
-
-                mov si, dx  
-                inc si
-                call translate_string
-                mov dx, si
-
-                dec ch
-                inc cl
-                shl cx, 1
-                
-                mov al, FILLING.filling_dl
-                xor bx, bx 
-                mov bl, ch
-                add bx, dx 
-                mov es:[bx], ax 
-                
-                mov al, FILLING.filling_dr
-                xor bx, bx 
-                mov bl, cl
-                add bx, dx 
-                mov es:[bx], ax 
-                
-                pop dx 
+                mov ah, FRAME_STYLE.global_style
+                mov bh, FRAME_STYLE.global_style
+                mov dh, FRAME_STYLE.global_style
 
                 mov al, FILLING.filling_ul
-                xor bx, bx 
-                mov bl, ch
-                add bx, dx 
-                mov es:[bx], ax 
+                mov bl, FILLING.filling_u
+                mov dl, FILLING.filling_ur
+
+                push di
+
+                xor ch, ch 
+                call draw_frame_line
                 
-                mov al, FILLING.filling_ur
-                xor bx, bx 
-                mov bl, cl
-                add bx, dx 
-                mov es:[bx], ax 
+                pop di
+                add di, NEW_LINE_OFFSET
 
-                ret        
+;;;;;;;;;;;;;;;;;;; drawing middle part ;;;;;;;;;;;;;;;;;;;;
+ 
+                mov ah, FRAME_STYLE.global_style
+                mov bh, FRAME_STYLE.global_filling
+                mov dh, FRAME_STYLE.global_style
+
+                mov al, FILLING.filling_ml
+                mov bl, FILLING.filling_m
+                mov dl, FILLING.filling_mr
+
+
+
+
                 
-
-
-
-
-; ax - character(ASCII table) with atribute
-; ch - x min  
-; cl - x max 
-; dh - y min 
-; dl - y max 
-draw_box:   
-
-                xor si,si   
-@@scope:                               
-                mov si, dx
-                shr si, 8
-                mov di, cx
-                call draw_horizontal 
-                mov cx, di
-                inc dh 
-                cmp dh,dl
-                jbe @@scope 
 
                 ret
 
-; translates string number in offset
-; si - multiply on 160
-translate_string:
+; _________________________________________________________
 
-                mov bx, si              ;mul on 160
-                shl bx, 1
-                shl si, 3
-                add si, bx              ; si * 10
-                shl si, 4               ; si * 16
-                
-                ret
-
-
-; ax - character(ASCII table) with atribute
-; si - line number 
-; ch - start position 
-; cl - end position 
-draw_horizontal:   
-
-                call translate_string
-                
-                mov bx, vram_location        
-                mov es, bx              ;vram_location -> es
-
-                xor bx, bx 
-                add bl, ch
-                add bl, ch  
-                sub cl, ch  
-                xor ch, ch
-                add bx, si
-                
-                cld
-                inc cx
-
-@@scope:                               
-                mov word ptr es:[bx], ax
-                add bx, 2 
-                loop @@scope
-
-                ret
-
-; ax - character(ASCII table) with atribute
-; si - column number 
-; ch - start position 
-; cl - end position 
-draw_vertical:  
-
-                mov bx, vram_location        
-                mov es, bx              ;vram_location -> es
-; //TODO copypast 
-                xor bx, bx
-                xor dx, dx
-                mov bl, ch  
-                mov dl, ch
-                shl dx, 1
-                shl bx, 3
-                add bx, dx
-                shl bx, 4
-                
-                shl si, 1 
-                add bx, si
-
-                sub cl, ch  
-                xor ch, ch
-                add cx, 1
-
-@@scope:                               
-                mov word ptr es:[bx], ax
-                add bx, 160 
-                loop @@scope
-
-                ret
 
 end __start__
+
+
+
+
+;; _________________________________________________________
+;; Get frame optimal size considered to string content  
+;;      
+;; args: 
+;;       cx    - string length 
+;;       es:di - start_line offset    
+;;       ds:si - source 
+;;
+;; delete:
+;;       ax, bx, cx, dx, di, si 
+;; _________________________________________________________
+;get_size:
+;
+;                mov al, SEPARATOR
+;                mov di, si
+;                call count_symbols
+;                mov si, di
+;                inc cx
+;                shl cx, 8
+;
+;@@loop:
+;                call strlen
+;                cmp al, cl
+;                ja @@new_lenght
+;@@comeback:
+;                mov bl, [si]
+;                cmp bl, 0Dh
+;                je @@livaem
+;                inc si
+;                jmp @@loop
+;
+;@@livaem:
+;                ret
+;                
+;@@new_lenght:
+;                mov cl, al
+;                jmp @@comeback
+;

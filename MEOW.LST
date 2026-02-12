@@ -1,0 +1,46 @@
+Turbo Assembler	 Version 4.1	    02/12/26 15:20:05	    Page 1
+meow.asm
+
+
+
+      1	0000			     .model tiny
+      2	0000			     .code
+      3				     org 100h
+      4
+      5	0100			     start:
+      6
+      7	0100  B8 0100			     mov ax , [offset 100h]
+      8
+      9				     end start
+Turbo Assembler	 Version 4.1	    02/12/26 15:20:05	    Page 2
+Symbol Table
+
+
+
+
+Symbol Name			  Type	 Value
+
+??DATE				  Text	 "02/12/26"
+??FILENAME			  Text	 "meow	  "
+??TIME				  Text	 "15:20:05"
+??VERSION			  Number 040A
+@32BIT				  Text	 0
+@CODE				  Text	 DGROUP
+@CODESIZE			  Text	 0
+@CPU				  Text	 0101H
+@CURSEG				  Text	 _TEXT
+@DATA				  Text	 DGROUP
+@DATASIZE			  Text	 0
+@FILENAME			  Text	 MEOW
+@INTERFACE			  Text	 000H
+@MODEL				  Text	 1
+@STACK				  Text	 DGROUP
+@WORDSIZE			  Text	 2
+START				  Near	 DGROUP:0100
+
+Groups & Segments		  Bit Size Align  Combine Class
+
+DGROUP				  Group
+  _DATA				  16  0000 Word	  Public  DATA
+  _TEXT				  16  0103 Word	  Public  CODE
+

@@ -1,0 +1,222 @@
+Turbo Assembler	 Version 4.1	    02/12/26 15:24:02	    Page 1
+state_ma.asm
+
+
+
+      1	0000			     .model tiny
+      2	0000			     .code
+      3				     org 100h
+      4
+      5				     ; ======================= DEFINES =========================
+      6
+      7				     __exit__ macro
+      8						     mov ah, 4ch
+      9						     int 21h
+     10					      endm
+     11
+     12	      =0024		     EOL     equ "$"
+     13
+     14				     ; uses dx ah
+     15				     PRINT macro string
+     16					     lea dx, [string]
+     17					     mov ah, 09h
+     18					     int 21h
+     19					   endm
+     20
+     21
+     22				     ; uses dl ah al
+     23				     GETCH macro
+     24					     mov ah, 08h
+     25					     int 21h
+     26					   endm
+     27
+     28	      =	1bh, "[36m"	     CYAN  equ 1bh, "[36m"
+     29	      =	1bh, "[31m"	     RED   equ 1bh, "[31m"
+     30	      =	1bh, "[32m"	     GREEN equ 1bh, "[32m"
+     31	      =	1bh, "[37m"	     WHITE equ 1bh, "[37m"
+     32				     ; ========================= MAIN ==========================
+     33
+     34	0100			     _start:
+     35	0100  E8 0007				     call hello_message
+     36	0103  E8 0014				     call state_machine
+     37						     __exit__
+1    38	0106  B4 4C				     mov ah, 4ch
+1    39	0108  CD 21				     int 21h
+     40
+     41				     ; ====================== FUNCTIONS	========================
+     42
+     43	010A			     hello_message:
+     44					     PRINT .hello_message
+1    45	010A  BA 0000r			     lea dx, [.hello_message]
+1    46	010D  B4 09			     mov ah, 09h
+1    47	010F  CD 21			     int 21h
+     48	0111				     .data
+     49	0000  1B 5B 33 36 6D 8F	E0+  .hello_message:	     db	CYAN, "Привет, бразе, это моя базовая ",\
+     50	      A8 A2 A5 E2 2C 20	A1+			     "задача Дербышева.", 0ah, WHITE, EOL
+     51	      E0 A0 A7 A5 2C 20	ED+
+     52	      E2 AE 20 AC AE EF	20+
+     53	      A1 A0 A7 AE A2 A0	EF+
+     54	      20 A7 A0 A4 A0 E7	A0+
+     55	      20 84 A5 E0 A1 EB	E8+
+     56	      A5 A2 A0 2E 0A 1B	5B+
+     57	      33 37 6D 24
+Turbo Assembler	 Version 4.1	    02/12/26 15:24:02	    Page 2
+state_ma.asm
+
+
+
+     58	003C				     .code
+     59	0111  C3			     ret
+     60
+     61	0112			     ask_user:
+     62					     PRINT .ask_msg
+1    63	0112  BA 003Cr			     lea dx, [.ask_msg]
+1    64	0115  B4 09			     mov ah, 09h
+1    65	0117  CD 21			     int 21h
+     66
+     67	0119				     .data
+     68	003C  82 EB A1 A5 E0 A8	20+	     .ask_msg:	     db	"Выбери	одну любимое пиво:", 02h, 0ah,\
+     69	      AE A4 AD E3 20 AB	EE+					"0)Ливаем", 0ah,\
+     70	      A1 A8 AC AE A5 20	AF+					"1)Пшеничное", 0ah,\
+     71	      A8 A2 AE 3A 02 0A	30+					"2)Берлинское",	0ah,\
+     72	      29 8B A8 A2 A0 A5	AC+					"3)Лидское", 0ah, WHITE, EOL
+     73	      0A 31 29 8F E8 A5	AD+
+     74	      A8 E7 AD AE A5 0A	32+
+     75	      29 81 A5 E0 AB A8	AD+
+     76	      E1 AA AE A5 0A 33	29+
+     77	      8B A8 A4 E1 AA AE	A5+
+     78	      0A 1B 5B 33 37 6D	24
+     79	0089				     .code
+     80
+     81	0119  C3			     ret
+     82
+     83	011A			     state_machine:
+     84
+     85	011A			     .repeat:
+     86	011A  E8 FFF5			     call ask_user
+     87					     GETCH
+1    88	011D  B4 08			     mov ah, 08h
+1    89	011F  CD 21			     int 21h
+     90	0121  74 27			     jz	.leave			     ; LEAVE IF	EMPTY
+     91	0123  2C 30			     sub al, 48			     ; CONVERSATION TO NUMBER
+     92	0125  8A 1E 0092r		     mov bl, [.msg_count]
+     93	0129  3A C3			     cmp al, bl			     ; CHECK IF	CORRECT
+     94	012B  76 09			     jbe .err_skip		     ; LEAVE IF	INCORRECT
+     95					     PRINT .err_msg
+1    96	012D  BA 0093r			     lea dx, [.err_msg]
+1    97	0130  B4 09			     mov ah, 09h
+1    98	0132  CD 21			     int 21h
+     99	0134  EB E4			     jmp .repeat
+    100	0136			     .err_skip:
+    101	0136  84 C0			     test al, al		     ; ZERO TEST
+    102	0138  74 10			     jz	.leave			     ; LEAVE BY	DEFAULT
+    103
+    104	013A  33 DB			     xor bx, bx
+    105	013C  8A D8			     mov bl, al
+    106	013E  D0 E3			     shl bl, 1
+    107	0140  8B 97 008Ar		     mov dx, [bx + offset .states]
+    108	0144  B4 09			     mov ah, 09h
+    109	0146  CD 21			     int 21h
+    110
+    111	0148  EB D0			     jmp .repeat
+    112
+    113	014A				     .leave:
+    114						     PRINT .exit_msg
+Turbo Assembler	 Version 4.1	    02/12/26 15:24:02	    Page 3
+state_ma.asm
+
+
+
+1   115	014A  BA 00B5r			     lea dx, [.exit_msg]
+1   116	014D  B4 09			     mov ah, 09h
+1   117	014F  CD 21			     int 21h
+    118	0151  C3				     ret
+    119
+    120	0152				     .data
+    121	0089  00			     align 2
+    122	008A			     .states:
+    123	008A  00B5r				     dw	.exit_msg
+    124	008C  00C0r				     dw	.pshenichnoe
+    125	008E  00D0r				     dw	.berlinskoe
+    126	0090  00E5r				     dw	.lidskoe
+    127	0092  03		     .msg_count	     db	3
+    128
+    129	0093			     .text:
+    130	0093  1B 5B 33 31 6D 8D	A5+  .err_msg	     db	RED, "Неправильное значение!", 0ah, WHITE, EOL
+    131	      AF E0 A0 A2 A8 AB	EC+
+    132	      AD AE A5 20 A7 AD	A0+
+    133	      E7 A5 AD A8 A5 21	0A+
+    134	      1B 5B 33 37 6D 24
+    135	00B5  82 E1 A5 20 AF AE	AA+  .exit_msg	     db	"Все пока!", 0ah, EOL
+    136	      A0 21 0A 24
+    137	00C0  82 20 E6 A5 AB AE	AC+  .pshenichnoe    db	"В целом сойдет", 0ah, EOL
+    138	      20 E1 AE A9 A4 A5	E2+
+    139	      0A 24
+    140	00D0  1B 5B 33 31 6D 94	E3+  .berlinskoe     db	RED, "Фууууууу!", 0ah, WHITE, EOL
+    141	      E3 E3 E3 E3 E3 E3	21+
+    142	      0A 1B 5B 33 37 6D	24
+    143	00E5  1B 5B 33 32 6D 8D	A0+  .lidskoe	     db	GREEN, "Наш слон.", 0ah, WHITE,	EOL
+    144	      E8 20 E1 AB AE AD	2E+
+    145	      0A 1B 5B 33 37 6D	24
+    146	00FA				     .code
+    147
+    148				     end	     _start
+Turbo Assembler	 Version 4.1	    02/12/26 15:24:02	    Page 4
+Symbol Table
+
+
+
+
+Symbol Name			  Type	 Value
+
+.ASK_MSG			  Near	 DGROUP:003C
+.BERLINSKOE			  Byte	 DGROUP:00D0
+.ERR_MSG			  Byte	 DGROUP:0093
+.ERR_SKIP			  Near	 DGROUP:0136
+.EXIT_MSG			  Byte	 DGROUP:00B5
+.HELLO_MESSAGE			  Near	 DGROUP:0000
+.LEAVE				  Near	 DGROUP:014A
+.LIDSKOE			  Byte	 DGROUP:00E5
+.MSG_COUNT			  Byte	 DGROUP:0092
+.PSHENICHNOE			  Byte	 DGROUP:00C0
+.REPEAT				  Near	 DGROUP:011A
+.STATES				  Near	 DGROUP:008A
+.TEXT				  Near	 DGROUP:0093
+??DATE				  Text	 "02/12/26"
+??FILENAME			  Text	 "state_ma"
+??TIME				  Text	 "15:24:02"
+??VERSION			  Number 040A
+@32BIT				  Text	 0
+@CODE				  Text	 DGROUP
+@CODESIZE			  Text	 0
+@CPU				  Text	 0101H
+@CURSEG				  Text	 _TEXT
+@DATA				  Text	 DGROUP
+@DATASIZE			  Text	 0
+@FILENAME			  Text	 STATE_MA
+@INTERFACE			  Text	 000H
+@MODEL				  Text	 1
+@STACK				  Text	 DGROUP
+@WORDSIZE			  Text	 2
+ASK_USER			  Near	 DGROUP:0112
+CYAN				  Text	 1bh, "[36m"
+EOL				  Number 0024
+GREEN				  Text	 1bh, "[32m"
+HELLO_MESSAGE			  Near	 DGROUP:010A
+RED				  Text	 1bh, "[31m"
+STATE_MACHINE			  Near	 DGROUP:011A
+WHITE				  Text	 1bh, "[37m"
+_START				  Near	 DGROUP:0100
+
+Macro Name
+
+GETCH
+PRINT
+__EXIT__
+
+Groups & Segments		  Bit Size Align  Combine Class
+
+DGROUP				  Group
+  _DATA				  16  00FA Word	  Public  DATA
+  _TEXT				  16  0152 Word	  Public  CODE
+
