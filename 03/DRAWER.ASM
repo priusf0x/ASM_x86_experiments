@@ -52,24 +52,10 @@ rect_filling    struc
 
 __start__:	
 
-                ;mov cl, ds:[bx + 80h]
-                ;mov ax, VRAM_LOCATION
-                ;mov es, ax
-                ;xor di, di 
-                ;mov si, 81h
-                ;
-                ;call write_text_centered
-                
-                mov cl, ds:[bx + 80h]
-                mov ax, VRAM_LOCATION
-                mov es, ax
-                mov ax, 1004h
-                mov bx, 2002h
-                mov dx, 1003h
-                mov cx, 00h
-                mov di, 320
-                
-                call draw_frame_line
+                mov cl, ds:[80h]
+                mov di, 81h
+
+                call get_size
 
                 __exit__
 
@@ -188,14 +174,14 @@ strlen:
 ;      
 ; args: 
 ;       al    - symbol 
-;       es:si - input string 
+;       es:di - input string 
 ;       cx    - string length 
 ;
-; return: 
-;       
-;       si - skipped until EOL
-;       cx - ds:si string length 
+; return:  
 ;       dx - symbol amount 
+;
+; delete       
+;       cx, si
 ; _________________________________________________________
 
 count_al_symbols_in_string:
@@ -388,15 +374,16 @@ draw_horizontal:
 ;               es:di - start point offset    
 ;
 ; delete:
-;       ax, bx, cx, di 
+;       di 
 ; _________________________________________________________
 
 draw_frame_line:
         
+                push ax
                 push cx 
                 mov cx, 1
                 call draw_horizontal
-        
+
                 pop cx 
                 mov ax, bx
                 call draw_horizontal
@@ -404,6 +391,8 @@ draw_frame_line:
                 mov cx, 1
                 mov ax, dx 
                 call draw_horizontal
+
+                pop ax 
                 
                 ret
 ; _________________________________________________________
@@ -445,7 +434,9 @@ draw_frame:
                 add di, NEW_LINE_OFFSET
 
 ;;;;;;;;;;;;;;;;;;; drawing middle part ;;;;;;;;;;;;;;;;;;;;
- 
+        
+                mov cx, si 
+
                 mov ah, FRAME_STYLE.global_style
                 mov bh, FRAME_STYLE.global_filling
                 mov dh, FRAME_STYLE.global_style
@@ -454,56 +445,107 @@ draw_frame:
                 mov bl, FILLING.filling_m
                 mov dl, FILLING.filling_mr
 
+                jmp @@test
+@@scope:
+        
+                dec ch 
+                mov si, cx
 
-
-
+                xor ch, ch 
+                push di
+                call draw_frame_line
+                pop di
+                add di, NEW_LINE_OFFSET
                 
+                jnz @@test 
+                
+@@skip:
 
+;;;;;;;;;;;;;;;;;; drawing lower part ;;;;;;;;;;;;;;;;;;;;;
+
+                mov ah, FRAME_STYLE.global_style
+                mov bh, FRAME_STYLE.global_style
+                mov dh, FRAME_STYLE.global_style
+
+                mov al, FILLING.filling_dl
+                mov bl, FILLING.filling_d
+                mov dl, FILLING.filling_dr
+                
+                mov cx, si
+
+                call draw_frame_line
+                
                 ret
+
+@@test:
+                mov cx, si 
+                test ch, ch
+                jnz @@scope
+                jmp @@skip
 
 ; _________________________________________________________
 
+; _________________________________________________________
+; Get frame optimal size considered to string content  
+;      
+; args: 
+;       cx    - string length
+;       es:di - text 
+;
+; returns:
+;       ch - frame height 
+;       cl - frame length 
+;       
+; delete:
+;       ?
+; _________________________________________________________
+
+get_size:
+
+                push cx 
+                push di
+
+                mov al, SEPARATOR
+                call count_al_symbols_in_string
+                mov cx, dx 
+                inc cx
+                shl cx, 8
+
+                pop di
+                pop ax
+                push cx
+                
+                mov cx, ax 
+        
+@@scope:
+                call strlen 
+
+                sub cx, bx
+
+                cmp bx, dx 
+                ja @@new_lenght
+@@continue:
+
+                test cx, cx 
+                jnz @@decrease
+
+                pop cx
+                mov cl, dl 
+
+                ret
+
+@@decrease:
+                inc di
+                dec cx 
+                jmp @@scope 
+
+@@new_lenght:
+                mov dx, bx
+                jmp @@continue 
+
+; _________________________________________________________
 
 end __start__
 
 
 
-
-;; _________________________________________________________
-;; Get frame optimal size considered to string content  
-;;      
-;; args: 
-;;       cx    - string length 
-;;       es:di - start_line offset    
-;;       ds:si - source 
-;;
-;; delete:
-;;       ax, bx, cx, dx, di, si 
-;; _________________________________________________________
-;get_size:
-;
-;                mov al, SEPARATOR
-;                mov di, si
-;                call count_symbols
-;                mov si, di
-;                inc cx
-;                shl cx, 8
-;
-;@@loop:
-;                call strlen
-;                cmp al, cl
-;                ja @@new_lenght
-;@@comeback:
-;                mov bl, [si]
-;                cmp bl, 0Dh
-;                je @@livaem
-;                inc si
-;                jmp @@loop
-;
-;@@livaem:
-;                ret
-;                
-;@@new_lenght:
-;                mov cl, al
-;                jmp @@comeback
-;
