@@ -27,13 +27,15 @@ BG_WHITE        equ BG_BLUE xor BG_GREEN xor BG_RED
 VRAM_LOCATION   equ 0B800h
 CENTER_X        equ 40
 CENTER_Y        equ 13
-SEPARATOR       equ '/'
+SEPARATOR       equ '#'
 NEW_LINE_OFFSET equ 160
+BUFFER          equ 81h
+BUFFER_LENGTH   equ 80h
 
 rect_style      struc
-                        global_filling  db ?
-                        global_style    db ?
-                        global_atribute db ?
+                        global_filling    db ?
+                        global_style      db ?
+                        global_atribute   db ?
                 ends
 
 rect_filling    struc
@@ -52,30 +54,65 @@ rect_filling    struc
 
 __start__:	
 
-                mov cl, ds:[80h]
-                mov di, 81h
-
-                call get_size
+                call main
 
                 __exit__
 
 .data 
-command_line    dw 81h
-FRAME_STYLE     rect_style <BG_BLUE, BG_GREEN, BG_RED>        
-FILLING         rect_filling <43d,45d,43d,124d,32d,124d,43d,45d,43d>
+FRAME_STYLE     rect_style <BG_WHITE, BG_RED, BG_WHITE>        
+FILLING         rect_filling <6,5,6,5,32,5,6,5,6>
 STYLES:
-STYLE_0         rect_style <BG_BLUE, BG_GREEN, BG_BLUE>        
-STYLE_1         rect_style <BG_RED , BG_WHITE, BG_BLUE>        
-STYLE_2         rect_style <      0, BG_WHITE, FG_WHITE>        
+DREC_CLASSIC    rect_style <BG_WHITE, BG_RED, BG_WHITE>        
+OLD_SCHOOL      rect_style <BG_BLUE, BG_WHITE, BG_BLUE>        
+GITHUB          rect_style <      0, BG_WHITE, 0>        
+FILLINGS:
+
 
 ; ======================= FUNCTIONS ========================
 
 .code
 
-; ==================== STRING FUNCTION =====================
+; ========================= MAIN ==========================
 
-;;ds:si - command line ptr
-;set_style:
+main:
+
+                mov cl, ds:[BUFFER_LENGTH]
+                mov di, BUFFER
+                call set_style
+
+                push di 
+                push cx 
+
+                call get_size
+                
+                push cx
+                call calculate_left_up_corner
+                pop cx
+
+                push bx 
+                call draw_frame
+                
+                pop bx
+                mov di, bx
+                pop cx
+                pop si
+                call write_text_centered
+                
+                ret
+
+; ==================== STRING FUNCTION ====================
+
+; _________________________________________________________
+; Setting frame filling  
+;       
+; args: 
+;       es:di - input string  
+;    
+; delete:
+;       al
+; _________________________________________________________
+
+;set_filling:
 ;
 ;                xor ax, ax
 ;                mov al, [si]
@@ -103,8 +140,55 @@ STYLE_2         rect_style <      0, BG_WHITE, FG_WHITE>
 ;                inc si
 ;                inc bx
 ;                loop @@set_param 
-
+;
 ;                ret 
+
+; _________________________________________________________
+
+; _________________________________________________________
+; Setting frame style 
+;       
+; args: 
+;       es:di - input string  
+;       cx    - string length 
+;    
+; returns: 
+;       es:di - ptr to skipped arg  
+;       cx    - length es:di
+; delete:
+;       ax, bx 
+; _________________________________________________________
+
+set_style:
+
+                call skip_spaces
+                call skip_spaces
+        
+                mov al, es:[di]
+                inc di 
+                dec cx
+                sub ax, "0"     
+
+                mov bx, ax 
+                shl bx, 1
+                add bx, ax
+                
+                mov al, [bx + offset STYLES]
+                mov FRAME_STYLE.global_filling, al
+                inc bx
+
+                mov al, [offset STYLES + bx]
+                mov FRAME_STYLE.global_style, al
+                inc bx
+
+                mov al, [offset STYLES + bx]
+                mov FRAME_STYLE.global_atribute, al
+                
+                call skip_spaces
+
+                ret 
+
+; _________________________________________________________
 
 ; _________________________________________________________
 ; Skip Spaces until not space symbol 
@@ -123,9 +207,11 @@ STYLE_2         rect_style <      0, BG_WHITE, FG_WHITE>
 skip_spaces:
 
                 cld
-                
                 mov al, 20h      
+                
                 repe scasb
+                inc cx
+                dec di
 
                 ret
 
@@ -202,28 +288,6 @@ count_al_symbols_in_string:
                 jmp @@continue
 
 ; _________________________________________________________
-; Translates bx into string offset  
-;      
-; args: 
-;       bx - string number 
-;
-; return: 
-;       bx - new offset 
-; del 
-;       ax
-; _________________________________________________________
-
-translate_string:
-
-                mov ax, bx 
-                shl bx, 1
-                shl ax, 3
-                add bx, ax              ; si * 10
-                shl bx, 4               ; si * 16
-                
-                ret
-
-; _________________________________________________________
 
 ; _________________________________________________________
 ; Write ds:si line with ah:al indent with offset es:si 
@@ -261,11 +325,9 @@ write_line:
 ;       cx    - string length 
 ;       es:di - start_line offset    
 ;       ds:si - source 
-; returns:
-;       si - the next symbol after last written        
 ;
 ; delete:
-;       di, cx, bx 
+;       di, cx, bx, si 
 ; _________________________________________________________
 
 write_string_centered:
@@ -497,7 +559,7 @@ draw_frame:
 ;       cl - frame length 
 ;       
 ; delete:
-;       ?
+;       ?all?
 ; _________________________________________________________
 
 get_size:
@@ -518,7 +580,10 @@ get_size:
                 mov cx, ax 
         
 @@scope:
+
+                push cx
                 call strlen 
+                pop cx 
 
                 sub cx, bx
 
@@ -531,6 +596,7 @@ get_size:
 
                 pop cx
                 mov cl, dl 
+                inc cl 
 
                 ret
 
@@ -542,6 +608,74 @@ get_size:
 @@new_lenght:
                 mov dx, bx
                 jmp @@continue 
+                
+; _________________________________________________________
+
+; _________________________________________________________
+; Translates bx into string offset  
+;      
+; args: 
+;       di - string number 
+;
+; return: 
+;       di - new offset 
+; del 
+;       bx
+; _________________________________________________________
+
+translate_string:
+
+                mov bx, di 
+                shl di, 3
+                shl bx, 1
+                add di, bx              
+                shl di, 4
+                
+                ret
+
+; _________________________________________________________
+
+; _________________________________________________________
+; Count left corner coordinate  
+;      
+; args: 
+;       ch - frame height 
+;       cl - frame length 
+;
+; returns:
+;       es - vram sector  
+;       di - left corner offset 
+;       bx - start string 
+;       
+; _________________________________________________________
+
+calculate_left_up_corner:
+
+                mov bx, VRAM_LOCATION
+                mov es, bx
+                
+                shr ch, 1
+                shr cl, 1
+                add cx, 0101h
+                
+                mov bx, CENTER_Y
+                sub bl, ch
+                mov di, bx
+
+                call translate_string
+                mov bx, di
+                add bx, NEW_LINE_OFFSET
+                push bx
+
+                mov bx, CENTER_X
+                sub bl, cl 
+                shl bx, 1
+
+                add di, bx
+
+                pop bx
+
+                ret
 
 ; _________________________________________________________
 

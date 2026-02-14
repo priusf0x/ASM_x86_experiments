@@ -1,4 +1,4 @@
-Turbo Assembler	 Version 4.1	    02/12/26 19:45:32	    Page 1
+Turbo Assembler	 Version 4.1	    02/14/26 02:33:47	    Page 1
 drawer.asm
 
 
@@ -38,574 +38,723 @@ drawer.asm
      33	      =B800		     VRAM_LOCATION   equ 0B800h
      34	      =0028		     CENTER_X	     equ 40
      35	      =000D		     CENTER_Y	     equ 13
-     36	      =002F		     SEPARATOR	     equ '/'
+     36	      =0023		     SEPARATOR	     equ '#'
      37	      =00A0		     NEW_LINE_OFFSET equ 160
-     38
-     39	*100			     rect_style	     struc
-     40	*000  01*(??)					     global_filling  db	?
-     41	*001  01*(??)					     global_style    db	?
-     42	*002  01*(??)					     global_atribute db	?
-     43	*003					     ends
-     44
-     45	*100			     rect_filling    struc
-     46	*000  01*(??)					     filling_ul	db ?
-     47	*001  01*(??)					     filling_u	db ?
-     48	*002  01*(??)					     filling_ur	db ?
-     49	*003  01*(??)					     filling_ml	db ?
-     50	*004  01*(??)					     filling_m	db ?
-     51	*005  01*(??)					     filling_mr	db ?
-     52	*006  01*(??)					     filling_dl	db ?
-     53	*007  01*(??)					     filling_d	db ?
-     54	*008  01*(??)					     filling_dr	db ?
-     55	*009					     ends
-     56
-     57				     ; =========================================================
-Turbo Assembler	 Version 4.1	    02/12/26 19:45:32	    Page 2
+     38	      =0081		     BUFFER	     equ 81h
+     39	      =0080		     BUFFER_LENGTH   equ 80h
+     40
+     41	*100			     rect_style	     struc
+     42	*000  01*(??)					     global_filling    db ?
+     43	*001  01*(??)					     global_style      db ?
+     44	*002  01*(??)					     global_atribute   db ?
+     45	*003					     ends
+     46
+     47	*100			     rect_filling    struc
+     48	*000  01*(??)					     filling_ul	db ?
+     49	*001  01*(??)					     filling_u	db ?
+     50	*002  01*(??)					     filling_ur	db ?
+     51	*003  01*(??)					     filling_ml	db ?
+     52	*004  01*(??)					     filling_m	db ?
+     53	*005  01*(??)					     filling_mr	db ?
+     54	*006  01*(??)					     filling_dl	db ?
+     55	*007  01*(??)					     filling_d	db ?
+     56	*008  01*(??)					     filling_dr	db ?
+     57	*009					     ends
+Turbo Assembler	 Version 4.1	    02/14/26 02:33:47	    Page 2
 drawer.asm
 
 
 
      58
-     59	0100			     __start__:
+     59				     ; =========================================================
      60
-     61	0100  8A 0E 0080			     mov cl, ds:[80h]
-     62	0104  BF 0081				     mov di, 81h
-     63
-     64	0107  E8 0109				     call get_size
-     65
-     66						     __exit__
-1    67	010A  B4 4C				     mov ah, 4ch
-1    68	010C  CD 21				     int 21h
-     69
-     70	010E			     .data
-     71	0000  0081		     command_line    dw	81h
-     72	0002  10 20 40		     FRAME_STYLE     rect_style	<BG_BLUE, BG_GREEN, BG_RED>
-     73	0005  2B 2D 2B 7C 20 7C	2B+  FILLING	     rect_filling <43d,45d,43d,124d,32d,124d,43d,45d,43d>
-     74	      2D 2B
-     75	000E			     STYLES:
-     76	000E  10 20 10		     STYLE_0	     rect_style	<BG_BLUE, BG_GREEN, BG_BLUE>
-     77	0011  40 70 10		     STYLE_1	     rect_style	<BG_RED	, BG_WHITE, BG_BLUE>
-     78	0014  00 70 0F		     STYLE_2	     rect_style	<      0, BG_WHITE, FG_WHITE>
+     61	0100			     __start__:
+     62
+     63	0100  E8 0004				     call main
+     64
+     65						     __exit__
+1    66	0103  B4 4C				     mov ah, 4ch
+1    67	0105  CD 21				     int 21h
+     68
+     69	0107			     .data
+     70	0000  70 40 70		     FRAME_STYLE     rect_style	<BG_WHITE, BG_RED, BG_WHITE>
+     71	0003  06 05 06 05 20 05	06+  FILLING	     rect_filling <6,5,6,5,32,5,6,5,6>
+     72	      05 06
+     73	000C			     STYLES:
+     74	000C  70 40 70		     DREC_CLASSIC    rect_style	<BG_WHITE, BG_RED, BG_WHITE>
+     75	000F  10 70 10		     OLD_SCHOOL	     rect_style	<BG_BLUE, BG_WHITE, BG_BLUE>
+     76	0012  00 70 00		     GITHUB	     rect_style	<      0, BG_WHITE, 0>
+     77	0015			     FILLINGS:
+     78
      79
      80				     ; ======================= FUNCTIONS ========================
      81
-     82	0017			     .code
+     82	0015			     .code
      83
-     84				     ; ==================== STRING FUNCTION =====================
+     84				     ; ========================= MAIN ==========================
      85
-     86				     ;;ds:si - command line ptr
-     87				     ;set_style:
-     88				     ;
-     89				     ;		      xor ax, ax
-     90				     ;		      mov al, [si]
-     91				     ;		      sub ax, "0"
-     92				     ;		      mov bx, ax
-     93				     ;		      shl ax, 1
-     94				     ;		      add bx, ax
-     95				     ;		      lea bx, [bx + offset STYLES]
-     96				     ;
-     97				     ;		      mov al, [bx]
-     98				     ;		      mov FRAME_STYLE.global_filling, al
-     99				     ;
-    100				     ;		      mov al, [bx + 1]
-    101				     ;		      mov FRAME_STYLE.global_style, al
-    102				     ;
-    103				     ;		      mov al, [bx + 2]
-    104				     ;		      mov FRAME_STYLE.global_atribute, al
-    105				     ;
-    106				     ;		      inc si
-    107				     ;		      mov bx, offset FILLING
-    108				     ;		      mov cx, 9h
-    109				     ;@@set_param:
-    110				     ;		      mov al, [si]
-    111				     ;		      mov [bx],	al
-    112				     ;		      inc si
-    113				     ;		      inc bx
-    114				     ;		      loop @@set_param
-Turbo Assembler	 Version 4.1	    02/12/26 19:45:32	    Page 3
+     86	0107			     main:
+     87
+     88	0107  8A 0E 0080			     mov cl, ds:[BUFFER_LENGTH]
+     89	010B  BF 0081				     mov di, BUFFER
+     90	010E  E8 0017				     call set_style
+     91
+     92	0111  57				     push di
+     93	0112  51				     push cx
+     94
+     95	0113  E8 013B				     call get_size
+     96
+     97	0116  51				     push cx
+     98	0117  E8 0173				     call calculate_left_up_corner
+     99	011A  59				     pop cx
+    100
+    101	011B  53				     push bx
+    102	011C  E8 00BC				     call draw_frame
+    103
+    104	011F  5B				     pop bx
+    105	0120  8B FB				     mov di, bx
+    106	0122  59				     pop cx
+    107	0123  5E				     pop si
+    108	0124  E8 0072				     call write_text_centered
+    109
+    110	0127  C3				     ret
+    111
+    112				     ; ==================== STRING FUNCTION ====================
+    113
+    114				     ; _________________________________________________________
+Turbo Assembler	 Version 4.1	    02/14/26 02:33:47	    Page 3
 drawer.asm
 
 
 
-    115
-    116				     ;		      ret
-    117
-    118				     ; _________________________________________________________
-    119				     ; Skip Spaces until not space symbol
-    120				     ;
-    121				     ; args:
-    122				     ;	     es:di - input string
-    123				     ;	     cx	   - string length
-    124				     ;
-    125				     ; return:
-    126				     ;	     di	- skipped until	separator
-    127				     ;	     ci	- si string length
-    128				     ; delete:
-    129				     ;	     al
-    130				     ; _________________________________________________________
-    131
-    132	010E			     skip_spaces:
-    133
-    134	010E  FC				     cld
-    135
-    136	010F  B0 20				     mov al, 20h
-    137	0111  F3> AE				     repe scasb
-    138
-    139	0113  C3				     ret
-    140
-    141				     ; _________________________________________________________
-    142
-    143				     ; _________________________________________________________
-    144				     ; Returns length of rhe ds:si string with separator
-    145				     ;	     symbol
-    146				     ; args:
-    147				     ;	     es:di - input string
-    148				     ;	     cx	   - string length
-    149				     ; return:
-    150				     ;	     bx	- string length
-    151				     ;	     di	- skipped until	separator or EOL
-    152				     ;	     cx	- length of new	si string
-    153				     ; delete
-    154				     ;	     ax
+    115				     ; Setting frame filling
+    116				     ;
+    117				     ; args:
+    118				     ;	     es:di - input string
+    119				     ;
+    120				     ; delete:
+    121				     ;	     al
+    122				     ; _________________________________________________________
+    123
+    124				     ;set_filling:
+    125				     ;
+    126				     ;		      xor ax, ax
+    127				     ;		      mov al, [si]
+    128				     ;		      sub ax, "0"
+    129				     ;		      mov bx, ax
+    130				     ;		      shl ax, 1
+    131				     ;		      add bx, ax
+    132				     ;		      lea bx, [bx + offset STYLES]
+    133				     ;
+    134				     ;		      mov al, [bx]
+    135				     ;		      mov FRAME_STYLE.global_filling, al
+    136				     ;
+    137				     ;		      mov al, [bx + 1]
+    138				     ;		      mov FRAME_STYLE.global_style, al
+    139				     ;
+    140				     ;		      mov al, [bx + 2]
+    141				     ;		      mov FRAME_STYLE.global_atribute, al
+    142				     ;
+    143				     ;		      inc si
+    144				     ;		      mov bx, offset FILLING
+    145				     ;		      mov cx, 9h
+    146				     ;@@set_param:
+    147				     ;		      mov al, [si]
+    148				     ;		      mov [bx],	al
+    149				     ;		      inc si
+    150				     ;		      inc bx
+    151				     ;		      loop @@set_param
+    152				     ;
+    153				     ;		      ret
+    154
     155				     ; _________________________________________________________
     156
-    157	0114			     strlen:
-    158
-    159	0114  8B D9				     mov bx, cx
-    160	0116  85 C9				     test cx, cx
-    161	0118  74 0B				     jz	@@skip
-    162
-    163	011A  33 C0				     xor ax, ax
-    164
-    165	011C  FC				     cld
-    166
-    167	011D  B0 2F				     mov al, separator
-    168	011F  F2> AE				     repne scasb
-    169
-    170	0121  75 02				     jne @@skip
-    171	0123  41				     inc cx
-Turbo Assembler	 Version 4.1	    02/12/26 19:45:32	    Page 4
+    157				     ; _________________________________________________________
+    158				     ; Setting frame style
+    159				     ;
+    160				     ; args:
+    161				     ;	     es:di - input string
+    162				     ;	     cx	   - string length
+    163				     ;
+    164				     ; returns:
+    165				     ;	     es:di - ptr to skipped arg
+    166				     ;	     cx	   - length es:di
+    167				     ; delete:
+    168				     ;	     ax, bx
+    169				     ; _________________________________________________________
+    170
+    171	0128			     set_style:
+Turbo Assembler	 Version 4.1	    02/14/26 02:33:47	    Page 4
 drawer.asm
 
 
 
-    172	0124  4F				     dec di
-    173
-    174	0125			     @@skip:
-    175	0125  2B D9				     sub bx, cx
-    176	0127			     @@leave:
-    177	0127  C3				     ret
-    178
-    179				     ; _________________________________________________________
+    172
+    173	0128  E8 002C				     call skip_spaces
+    174	012B  E8 0029				     call skip_spaces
+    175
+    176	012E  26: 8A 05				     mov al, es:[di]
+    177	0131  47				     inc di
+    178	0132  49				     dec cx
+    179	0133  2D 0030				     sub ax, "0"
     180
-    181				     ; _________________________________________________________
-    182				     ; Count amount of al(ASCII) symbols in string es:al
-    183				     ;
-    184				     ; args:
-    185				     ;	     al	   - symbol
-    186				     ;	     es:di - input string
-    187				     ;	     cx	   - string length
-    188				     ;
-    189				     ; return:
-    190				     ;	     dx	- symbol amount
-    191				     ;
-    192				     ; delete
-    193				     ;	     cx, si
-    194				     ; _________________________________________________________
+    181	0136  8B D8				     mov bx, ax
+    182	0138  D1 E3				     shl bx, 1
+    183	013A  03 D8				     add bx, ax
+    184
+    185	013C  8A 87 000Cr			     mov al, [bx + offset STYLES]
+    186	0140  A2 0000r				     mov FRAME_STYLE.global_filling, al
+    187	0143  43				     inc bx
+    188
+    189	0144  8A 87 000Cr			     mov al, [offset STYLES + bx]
+    190	0148  A2 0001r				     mov FRAME_STYLE.global_style, al
+    191	014B  43				     inc bx
+    192
+    193	014C  8A 87 000Cr			     mov al, [offset STYLES + bx]
+    194	0150  A2 0002r				     mov FRAME_STYLE.global_atribute, al
     195
-    196	0128			     count_al_symbols_in_string:
+    196	0153  E8 0001				     call skip_spaces
     197
-    198	0128  33 D2				     xor dx, dx
-    199	012A  FC				     cld
-    200
-    201	012B			     @@continue:
-    202
-    203	012B  F2> AE				     repne scasb
-    204	012D  74 01				     je	@@increment
-    205
-    206	012F  C3				     ret
-    207
-    208	0130			     @@increment:
-    209	0130  42				     inc dx
-    210	0131  46				     inc si
-    211	0132  EB F7				     jmp @@continue
-    212
-    213				     ; _________________________________________________________
-    214				     ; Translates bx into string offset
-    215				     ;
-    216				     ; args:
-    217				     ;	     bx	- string number
-    218				     ;
-    219				     ; return:
-    220				     ;	     bx	- new offset
-    221				     ; del
-    222				     ;	     ax
-    223				     ; _________________________________________________________
+    198	0156  C3				     ret
+    199
+    200				     ; _________________________________________________________
+    201
+    202				     ; _________________________________________________________
+    203				     ; Skip Spaces until not space symbol
+    204				     ;
+    205				     ; args:
+    206				     ;	     es:di - input string
+    207				     ;	     cx	   - string length
+    208				     ;
+    209				     ; return:
+    210				     ;	     di	- skipped until	separator
+    211				     ;	     ci	- si string length
+    212				     ; delete:
+    213				     ;	     al
+    214				     ; _________________________________________________________
+    215
+    216	0157			     skip_spaces:
+    217
+    218	0157  FC				     cld
+    219	0158  B0 20				     mov al, 20h
+    220
+    221	015A  F3> AE				     repe scasb
+    222	015C  41				     inc cx
+    223	015D  4F				     dec di
     224
-    225	0134			     translate_string:
+    225	015E  C3				     ret
     226
-    227	0134  8B C3				     mov ax, bx
-    228	0136  D1 E3				     shl bx, 1
-Turbo Assembler	 Version 4.1	    02/12/26 19:45:32	    Page 5
+    227				     ; _________________________________________________________
+    228
+Turbo Assembler	 Version 4.1	    02/14/26 02:33:47	    Page 5
 drawer.asm
 
 
 
-    229	0138  C1 E0 03				     shl ax, 3
-    230	013B  03 D8				     add bx, ax		     ; si * 10
-    231	013D  C1 E3 04				     shl bx, 4		     ; si * 16
-    232
-    233	0140  C3				     ret
-    234
-    235				     ; _________________________________________________________
-    236
-    237				     ; _________________________________________________________
-    238				     ; Write ds:si line	with ah:al indent with offset es:si
-    239				     ;
-    240				     ; args:
-    241				     ;	     cx	   - printable string length
-    242				     ;	     es:di - offset
-    243				     ;	     ds:si - source
-    244				     ; returns:
-    245				     ;	     si	- the next symbol after	last written
-    246				     ;
-    247				     ; delete:
-    248				     ;	     di, cx
-    249				     ; _________________________________________________________
+    229				     ; _________________________________________________________
+    230				     ; Returns length of rhe ds:si string with separator
+    231				     ;	     symbol
+    232				     ; args:
+    233				     ;	     es:di - input string
+    234				     ;	     cx	   - string length
+    235				     ; return:
+    236				     ;	     bx	- string length
+    237				     ;	     di	- skipped until	separator or EOL
+    238				     ;	     cx	- length of new	si string
+    239				     ; delete
+    240				     ;	     ax
+    241				     ; _________________________________________________________
+    242
+    243	015F			     strlen:
+    244
+    245	015F  8B D9				     mov bx, cx
+    246	0161  85 C9				     test cx, cx
+    247	0163  74 0B				     jz	@@skip
+    248
+    249	0165  33 C0				     xor ax, ax
     250
-    251	0141			     write_line:
+    251	0167  FC				     cld
     252
-    253	0141  85 C9				     test cx, cx
-    254	0143  74 09				     jz	@@leave
+    253	0168  B0 23				     mov al, separator
+    254	016A  F2> AE				     repne scasb
     255
-    256	0145  FC				     cld
-    257	0146  8A 26 0004r			     mov ah, FRAME_STYLE.global_atribute
-    258
-    259	014A  AC		     @@scope:	     lodsb
-    260	014B  AB				     stosw
-    261	014C  E2 FC				     loop @@scope
-    262	014E			     @@leave:
-    263
-    264	014E  C3				     ret
-    265
-    266				     ; _________________________________________________________
-    267				     ; Write string with centering
-    268				     ;
-    269				     ; args:
-    270				     ;	     cx	   - string length
-    271				     ;	     es:di - start_line	offset
-    272				     ;	     ds:si - source
-    273				     ; returns:
-    274				     ;	     si	- the next symbol after	last written
-    275				     ;
-    276				     ; delete:
-    277				     ;	     di, cx, bx
-    278				     ; _________________________________________________________
-    279
-    280	014F			     write_string_centered:
+    256	016C  75 02				     jne @@skip
+    257	016E  41				     inc cx
+    258	016F  4F				     dec di
+    259
+    260	0170			     @@skip:
+    261	0170  2B D9				     sub bx, cx
+    262	0172			     @@leave:
+    263	0172  C3				     ret
+    264
+    265				     ; _________________________________________________________
+    266
+    267				     ; _________________________________________________________
+    268				     ; Count amount of al(ASCII) symbols in string es:al
+    269				     ;
+    270				     ; args:
+    271				     ;	     al	   - symbol
+    272				     ;	     es:di - input string
+    273				     ;	     cx	   - string length
+    274				     ;
+    275				     ; return:
+    276				     ;	     dx	- symbol amount
+    277				     ;
+    278				     ; delete
+    279				     ;	     cx, si
+    280				     ; _________________________________________________________
     281
-    282	014F  83 C7 50				     add di, CENTER_X *	2
-    283	0152  2B F9				     sub di, cx
-    284
-    285	0154  83 E7 FE				     and di, 0FFFFh - 1
-Turbo Assembler	 Version 4.1	    02/12/26 19:45:32	    Page 6
+    282	0173			     count_al_symbols_in_string:
+    283
+    284	0173  33 D2				     xor dx, dx
+    285	0175  FC				     cld
+Turbo Assembler	 Version 4.1	    02/14/26 02:33:47	    Page 6
 drawer.asm
 
 
 
     286
-    287	0157  E8 FFE7				     call write_line
+    287	0176			     @@continue:
     288
-    289	015A  C3				     ret
-    290				     ; _________________________________________________________
+    289	0176  F2> AE				     repne scasb
+    290	0178  74 01				     je	@@increment
     291
-    292				     ; _________________________________________________________
-    293				     ; Write text with centering
-    294				     ;
-    295				     ; args:
-    296				     ;	     cx	   - string length
-    297				     ;	     es:di - start_line	offset
-    298				     ;	     ds:si - source
-    299				     ;
-    300				     ; delete:
-    301				     ;	     ax, bx, cx, dx, di, si
-    302				     ; _________________________________________________________
-    303
-    304	015B			     write_text_centered:
-    305
-    306	015B			     @@scope:
-    307
-    308	015B  51				     push cx
-    309	015C  57				     push di
-    310	015D  06				     push es
-    311
-    312	015E  8C D8				     mov ax, ds
-    313	0160  8E C0				     mov es, ax
-    314	0162  8B FE				     mov di, si
-    315
-    316	0164  E8 FFAD				     call strlen
-    317
-    318	0167  07				     pop es
-    319	0168  5F				     pop di
-    320	0169  59				     pop cx
-    321
-    322	016A  2B CB				     sub cx, bx
-    323
-    324	016C  51				     push cx
-    325	016D  57				     push di
-    326
-    327	016E  8B CB				     mov cx, bx
-    328	0170  E8 FFDC				     call write_string_centered
+    292	017A  C3				     ret
+    293
+    294	017B			     @@increment:
+    295	017B  42				     inc dx
+    296	017C  46				     inc si
+    297	017D  EB F7				     jmp @@continue
+    298
+    299				     ; _________________________________________________________
+    300
+    301				     ; _________________________________________________________
+    302				     ; Write ds:si line	with ah:al indent with offset es:si
+    303				     ;
+    304				     ; args:
+    305				     ;	     cx	   - printable string length
+    306				     ;	     es:di - offset
+    307				     ;	     ds:si - source
+    308				     ; returns:
+    309				     ;	     si	- the next symbol after	last written
+    310				     ;
+    311				     ; delete:
+    312				     ;	     di, cx
+    313				     ; _________________________________________________________
+    314
+    315	017F			     write_line:
+    316
+    317	017F  85 C9				     test cx, cx
+    318	0181  74 09				     jz	@@leave
+    319
+    320	0183  FC				     cld
+    321	0184  8A 26 0002r			     mov ah, FRAME_STYLE.global_atribute
+    322
+    323	0188  AC		     @@scope:	     lodsb
+    324	0189  AB				     stosw
+    325	018A  E2 FC				     loop @@scope
+    326	018C			     @@leave:
+    327
+    328	018C  C3				     ret
     329
-    330	0173  5F				     pop di
-    331	0174  59				     pop cx
-    332
-    333	0175  81 C7 00A0			     add di, NEW_LINE_OFFSET
-    334
-    335	0179  85 C9				     test cx, cx
-    336	017B  75 01				     jnz @@decrease
-    337
-    338	017D  C3				     ret
-    339
-    340	017E			     @@decrease:
-    341	017E  46				     inc si
-    342	017F  49				     dec cx
-Turbo Assembler	 Version 4.1	    02/12/26 19:45:32	    Page 7
+    330				     ; _________________________________________________________
+    331				     ; Write string with centering
+    332				     ;
+    333				     ; args:
+    334				     ;	     cx	   - string length
+    335				     ;	     es:di - start_line	offset
+    336				     ;	     ds:si - source
+    337				     ;
+    338				     ; delete:
+    339				     ;	     di, cx, bx, si
+    340				     ; _________________________________________________________
+    341
+    342	018D			     write_string_centered:
+Turbo Assembler	 Version 4.1	    02/14/26 02:33:47	    Page 7
 drawer.asm
 
 
 
-    343	0180  EB D9				     jmp @@scope
-    344
-    345				     ; _________________________________________________________
+    343
+    344	018D  83 C7 50				     add di, CENTER_X *	2
+    345	0190  2B F9				     sub di, cx
     346
-    347				     ; ==================== DRAW_FUNCTION ======================
+    347	0192  83 E7 FE				     and di, 0FFFFh - 1
     348
-    349				     ; _________________________________________________________
-    350				     ; Draws horizontal	line with length of cx on es:di	offset
-    351				     ;
-    352				     ; args:
-    353				     ;	     ah	   - atribute
-    354				     ;	     al	   - ASCII character
-    355				     ;	     cx	   - string length
-    356				     ;	     es:di - start point offset
-    357				     ;
-    358				     ; returns:
-    359				     ;	     di	- new cursor position
-    360				     ;
-    361				     ; delete:
-    362				     ;	     cx
-    363				     ; _________________________________________________________
-    364
-    365	0182			     draw_horizontal:
-    366
-    367	0182  F3> AB				     rep stosw
-    368
-    369	0184  C3				     ret
-    370
-    371				     ; _________________________________________________________
-    372				     ; Draws horizontal	line() with length of cx on es:di offset
-    373				     ;
-    374				     ; args:
-    375				     ;1st symbol:    ah	   - atribute
-    376				     ;		     al	   - ASCII character
-    377				     ;2st symbol:    bh	   - atribute
-    378				     ;		     bl	   - ASCII character
-    379				     ;3st symbol:    dh	   - atribute
-    380				     ;		     dl	   - ASCII character
-    381				     ;
-    382				     ;		     cx	   - string length
-    383				     ;		     es:di - start point offset
-    384				     ;
-    385				     ; delete:
-    386				     ;	     di
-    387				     ; _________________________________________________________
+    349	0195  E8 FFE7				     call write_line
+    350
+    351	0198  C3				     ret
+    352				     ; _________________________________________________________
+    353
+    354				     ; _________________________________________________________
+    355				     ; Write text with centering
+    356				     ;
+    357				     ; args:
+    358				     ;	     cx	   - string length
+    359				     ;	     es:di - start_line	offset
+    360				     ;	     ds:si - source
+    361				     ;
+    362				     ; delete:
+    363				     ;	     ax, bx, cx, dx, di, si
+    364				     ; _________________________________________________________
+    365
+    366	0199			     write_text_centered:
+    367
+    368	0199			     @@scope:
+    369
+    370	0199  51				     push cx
+    371	019A  57				     push di
+    372	019B  06				     push es
+    373
+    374	019C  8C D8				     mov ax, ds
+    375	019E  8E C0				     mov es, ax
+    376	01A0  8B FE				     mov di, si
+    377
+    378	01A2  E8 FFBA				     call strlen
+    379
+    380	01A5  07				     pop es
+    381	01A6  5F				     pop di
+    382	01A7  59				     pop cx
+    383
+    384	01A8  2B CB				     sub cx, bx
+    385
+    386	01AA  51				     push cx
+    387	01AB  57				     push di
     388
-    389	0185			     draw_frame_line:
-    390
-    391	0185  50				     push ax
-    392	0186  51				     push cx
-    393	0187  B9 0001				     mov cx, 1
-    394	018A  E8 FFF5				     call draw_horizontal
-    395
-    396	018D  59				     pop cx
-    397	018E  8B C3				     mov ax, bx
-    398	0190  E8 FFEF				     call draw_horizontal
+    389	01AC  8B CB				     mov cx, bx
+    390	01AE  E8 FFDC				     call write_string_centered
+    391
+    392	01B1  5F				     pop di
+    393	01B2  59				     pop cx
+    394
+    395	01B3  81 C7 00A0			     add di, NEW_LINE_OFFSET
+    396
+    397	01B7  85 C9				     test cx, cx
+    398	01B9  75 01				     jnz @@decrease
     399
-Turbo Assembler	 Version 4.1	    02/12/26 19:45:32	    Page 8
+Turbo Assembler	 Version 4.1	    02/14/26 02:33:47	    Page 8
 drawer.asm
 
 
 
-    400	0193  B9 0001				     mov cx, 1
-    401	0196  8B C2				     mov ax, dx
-    402	0198  E8 FFE7				     call draw_horizontal
-    403
-    404	019B  58				     pop ax
-    405
-    406	019C  C3				     ret
+    400	01BB  C3				     ret
+    401
+    402	01BC			     @@decrease:
+    403	01BC  46				     inc si
+    404	01BD  49				     dec cx
+    405	01BE  EB D9				     jmp @@scope
+    406
     407				     ; _________________________________________________________
     408
-    409				     ; _________________________________________________________
-    410				     ; Draws a frame
-    411				     ;
-    412				     ; args:
-    413				     ;		     ch	- height
-    414				     ;		     cl	- length
-    415				     ;		     es:di - start point offset
-    416				     ;
-    417				     ; delete:
-    418				     ;	     ax, bx, cx, dx, di, si
-    419				     ; _________________________________________________________
-    420
-    421	019D			     draw_frame:
-    422
-    423				     ;;;;;;;;;;;;;;;;;;;;;;;; saving cx	;;;;;;;;;;;;;;;;;;;;;;;;
-    424
-    425	019D  8B F1				     mov si, cx
+    409				     ; ==================== DRAW_FUNCTION ======================
+    410
+    411				     ; _________________________________________________________
+    412				     ; Draws horizontal	line with length of cx on es:di	offset
+    413				     ;
+    414				     ; args:
+    415				     ;	     ah	   - atribute
+    416				     ;	     al	   - ASCII character
+    417				     ;	     cx	   - string length
+    418				     ;	     es:di - start point offset
+    419				     ;
+    420				     ; returns:
+    421				     ;	     di	- new cursor position
+    422				     ;
+    423				     ; delete:
+    424				     ;	     cx
+    425				     ; _________________________________________________________
     426
-    427				     ;;;;;;;;;;;;;;;;;;; drawing upper part ;;;;;;;;;;;;;;;;;;;;
+    427	01C0			     draw_horizontal:
     428
-    429	019F  8A 26 0003r			     mov ah, FRAME_STYLE.global_style
-    430	01A3  8A 3E 0003r			     mov bh, FRAME_STYLE.global_style
-    431	01A7  8A 36 0003r			     mov dh, FRAME_STYLE.global_style
+    429	01C0  F3> AB				     rep stosw
+    430
+    431	01C2  C3				     ret
     432
-    433	01AB  A0 0005r				     mov al, FILLING.filling_ul
-    434	01AE  8A 1E 0006r			     mov bl, FILLING.filling_u
-    435	01B2  8A 16 0007r			     mov dl, FILLING.filling_ur
-    436
-    437	01B6  57				     push di
-    438
-    439	01B7  32 ED				     xor ch, ch
-    440	01B9  E8 FFC9				     call draw_frame_line
-    441
-    442	01BC  5F				     pop di
-    443	01BD  81 C7 00A0			     add di, NEW_LINE_OFFSET
-    444
-    445				     ;;;;;;;;;;;;;;;;;;; drawing middle	part ;;;;;;;;;;;;;;;;;;;;
-    446
-    447	01C1  8B CE				     mov cx, si
-    448
-    449	01C3  8A 26 0003r			     mov ah, FRAME_STYLE.global_style
-    450	01C7  8A 3E 0002r			     mov bh, FRAME_STYLE.global_filling
-    451	01CB  8A 36 0003r			     mov dh, FRAME_STYLE.global_style
+    433				     ; _________________________________________________________
+    434				     ; Draws horizontal	line() with length of cx on es:di offset
+    435				     ;
+    436				     ; args:
+    437				     ;1st symbol:    ah	   - atribute
+    438				     ;		     al	   - ASCII character
+    439				     ;2st symbol:    bh	   - atribute
+    440				     ;		     bl	   - ASCII character
+    441				     ;3st symbol:    dh	   - atribute
+    442				     ;		     dl	   - ASCII character
+    443				     ;
+    444				     ;		     cx	   - string length
+    445				     ;		     es:di - start point offset
+    446				     ;
+    447				     ; delete:
+    448				     ;	     di
+    449				     ; _________________________________________________________
+    450
+    451	01C3			     draw_frame_line:
     452
-    453	01CF  A0 0008r				     mov al, FILLING.filling_ml
-    454	01D2  8A 1E 0009r			     mov bl, FILLING.filling_m
-    455	01D6  8A 16 000Ar			     mov dl, FILLING.filling_mr
-    456
-Turbo Assembler	 Version 4.1	    02/12/26 19:45:32	    Page 9
+    453	01C3  50				     push ax
+    454	01C4  51				     push cx
+    455	01C5  B9 0001				     mov cx, 1
+    456	01C8  E8 FFF5				     call draw_horizontal
+Turbo Assembler	 Version 4.1	    02/14/26 02:33:47	    Page 9
 drawer.asm
 
 
 
-    457	01DA  EB 2F 90				     jmp @@test
-    458	01DD			     @@scope:
-    459
-    460	01DD  FE CD				     dec ch
-    461	01DF  8B F1				     mov si, cx
-    462
-    463	01E1  32 ED				     xor ch, ch
-    464	01E3  57				     push di
-    465	01E4  E8 FF9E				     call draw_frame_line
-    466	01E7  5F				     pop di
-    467	01E8  81 C7 00A0			     add di, NEW_LINE_OFFSET
-    468
-    469	01EC  75 1D				     jnz @@test
+    457
+    458	01CB  59				     pop cx
+    459	01CC  8B C3				     mov ax, bx
+    460	01CE  E8 FFEF				     call draw_horizontal
+    461
+    462	01D1  B9 0001				     mov cx, 1
+    463	01D4  8B C2				     mov ax, dx
+    464	01D6  E8 FFE7				     call draw_horizontal
+    465
+    466	01D9  58				     pop ax
+    467
+    468	01DA  C3				     ret
+    469				     ; _________________________________________________________
     470
-    471	01EE			     @@skip:
-    472
-    473				     ;;;;;;;;;;;;;;;;;;	drawing	lower part ;;;;;;;;;;;;;;;;;;;;;
-    474
-    475	01EE  8A 26 0003r			     mov ah, FRAME_STYLE.global_style
-    476	01F2  8A 3E 0003r			     mov bh, FRAME_STYLE.global_style
-    477	01F6  8A 36 0003r			     mov dh, FRAME_STYLE.global_style
-    478
-    479	01FA  A0 000Br				     mov al, FILLING.filling_dl
-    480	01FD  8A 1E 000Cr			     mov bl, FILLING.filling_d
-    481	0201  8A 16 000Dr			     mov dl, FILLING.filling_dr
+    471				     ; _________________________________________________________
+    472				     ; Draws a frame
+    473				     ;
+    474				     ; args:
+    475				     ;		     ch	- height
+    476				     ;		     cl	- length
+    477				     ;		     es:di - start point offset
+    478				     ;
+    479				     ; delete:
+    480				     ;	     ax, bx, cx, dx, di, si
+    481				     ; _________________________________________________________
     482
-    483	0205  8B CE				     mov cx, si
+    483	01DB			     draw_frame:
     484
-    485	0207  E8 FF7B				     call draw_frame_line
+    485				     ;;;;;;;;;;;;;;;;;;;;;;;; saving cx	;;;;;;;;;;;;;;;;;;;;;;;;
     486
-    487	020A  C3				     ret
+    487	01DB  8B F1				     mov si, cx
     488
-    489	020B			     @@test:
-    490	020B  8B CE				     mov cx, si
-    491	020D  84 ED				     test ch, ch
-    492	020F  75 CC				     jnz @@scope
-    493	0211  EB DB				     jmp @@skip
+    489				     ;;;;;;;;;;;;;;;;;;; drawing upper part ;;;;;;;;;;;;;;;;;;;;
+    490
+    491	01DD  8A 26 0001r			     mov ah, FRAME_STYLE.global_style
+    492	01E1  8A 3E 0001r			     mov bh, FRAME_STYLE.global_style
+    493	01E5  8A 36 0001r			     mov dh, FRAME_STYLE.global_style
     494
-    495				     ; _________________________________________________________
-    496
-    497				     ; _________________________________________________________
-    498				     ; Get frame optimal size considered to string content
-    499				     ;
-    500				     ; args:
-    501				     ;	     cx	   - string length
-    502				     ;	     es:di - text
-    503				     ;
-    504				     ; returns:
-    505				     ;	     ch	- frame	height
-    506				     ;	     cl	- frame	length
-    507				     ;
-    508				     ; delete:
-    509				     ;	     ?
-    510				     ; _________________________________________________________
-    511
-    512	0213			     get_size:
-    513
-Turbo Assembler	 Version 4.1	    02/12/26 19:45:32	    Page 10
+    495	01E9  A0 0003r				     mov al, FILLING.filling_ul
+    496	01EC  8A 1E 0004r			     mov bl, FILLING.filling_u
+    497	01F0  8A 16 0005r			     mov dl, FILLING.filling_ur
+    498
+    499	01F4  57				     push di
+    500
+    501	01F5  32 ED				     xor ch, ch
+    502	01F7  E8 FFC9				     call draw_frame_line
+    503
+    504	01FA  5F				     pop di
+    505	01FB  81 C7 00A0			     add di, NEW_LINE_OFFSET
+    506
+    507				     ;;;;;;;;;;;;;;;;;;; drawing middle	part ;;;;;;;;;;;;;;;;;;;;
+    508
+    509	01FF  8B CE				     mov cx, si
+    510
+    511	0201  8A 26 0001r			     mov ah, FRAME_STYLE.global_style
+    512	0205  8A 3E 0000r			     mov bh, FRAME_STYLE.global_filling
+    513	0209  8A 36 0001r			     mov dh, FRAME_STYLE.global_style
+Turbo Assembler	 Version 4.1	    02/14/26 02:33:47	    Page 10
 drawer.asm
 
 
 
-    514	0213  51				     push cx
-    515	0214  57				     push di
-    516
-    517	0215  B0 2F				     mov al, SEPARATOR
-    518	0217  E8 FF0E				     call count_al_symbols_in_string
-    519	021A  8B CA				     mov cx, dx
-    520	021C  41				     inc cx
-    521	021D  C1 E1 08				     shl cx, 8
-    522
-    523	0220  5F				     pop di
-    524	0221  58				     pop ax
-    525	0222  51				     push cx
-    526
-    527	0223  8B C8				     mov cx, ax
-    528
-    529	0225			     @@scope:
-    530	0225  E8 FEEC				     call strlen
-    531
-    532	0228  2B CB				     sub cx, bx
-    533
-    534	022A  3B DA				     cmp bx, dx
-    535	022C  77 0C				     ja	@@new_lenght
-    536	022E			     @@continue:
-    537
-    538	022E  85 C9				     test cx, cx
-    539	0230  75 04				     jnz @@decrease
+    514
+    515	020D  A0 0006r				     mov al, FILLING.filling_ml
+    516	0210  8A 1E 0007r			     mov bl, FILLING.filling_m
+    517	0214  8A 16 0008r			     mov dl, FILLING.filling_mr
+    518
+    519	0218  EB 2F 90				     jmp @@test
+    520	021B			     @@scope:
+    521
+    522	021B  FE CD				     dec ch
+    523	021D  8B F1				     mov si, cx
+    524
+    525	021F  32 ED				     xor ch, ch
+    526	0221  57				     push di
+    527	0222  E8 FF9E				     call draw_frame_line
+    528	0225  5F				     pop di
+    529	0226  81 C7 00A0			     add di, NEW_LINE_OFFSET
+    530
+    531	022A  75 1D				     jnz @@test
+    532
+    533	022C			     @@skip:
+    534
+    535				     ;;;;;;;;;;;;;;;;;;	drawing	lower part ;;;;;;;;;;;;;;;;;;;;;
+    536
+    537	022C  8A 26 0001r			     mov ah, FRAME_STYLE.global_style
+    538	0230  8A 3E 0001r			     mov bh, FRAME_STYLE.global_style
+    539	0234  8A 36 0001r			     mov dh, FRAME_STYLE.global_style
     540
-    541	0232  59				     pop cx
-    542	0233  8A CA				     mov cl, dl
-    543
-    544	0235  C3				     ret
-    545
-    546	0236			     @@decrease:
-    547	0236  47				     inc di
-    548	0237  49				     dec cx
-    549	0238  EB EB				     jmp @@scope
+    541	0238  A0 0009r				     mov al, FILLING.filling_dl
+    542	023B  8A 1E 000Ar			     mov bl, FILLING.filling_d
+    543	023F  8A 16 000Br			     mov dl, FILLING.filling_dr
+    544
+    545	0243  8B CE				     mov cx, si
+    546
+    547	0245  E8 FF7B				     call draw_frame_line
+    548
+    549	0248  C3				     ret
     550
-    551	023A			     @@new_lenght:
-    552	023A  8B D3				     mov dx, bx
-    553	023C  EB F0				     jmp @@continue
-    554
-    555				     ; _________________________________________________________
+    551	0249			     @@test:
+    552	0249  8B CE				     mov cx, si
+    553	024B  84 ED				     test ch, ch
+    554	024D  75 CC				     jnz @@scope
+    555	024F  EB DB				     jmp @@skip
     556
-    557				     end __start__
-Turbo Assembler	 Version 4.1	    02/12/26 19:45:32	    Page 11
+    557				     ; _________________________________________________________
+    558
+    559				     ; _________________________________________________________
+    560				     ; Get frame optimal size considered to string content
+    561				     ;
+    562				     ; args:
+    563				     ;	     cx	   - string length
+    564				     ;	     es:di - text
+    565				     ;
+    566				     ; returns:
+    567				     ;	     ch	- frame	height
+    568				     ;	     cl	- frame	length
+    569				     ;
+    570				     ; delete:
+Turbo Assembler	 Version 4.1	    02/14/26 02:33:47	    Page 11
+drawer.asm
+
+
+
+    571				     ;	     ?all?
+    572				     ; _________________________________________________________
+    573
+    574	0251			     get_size:
+    575
+    576	0251  51				     push cx
+    577	0252  57				     push di
+    578
+    579	0253  B0 23				     mov al, SEPARATOR
+    580	0255  E8 FF1B				     call count_al_symbols_in_string
+    581	0258  8B CA				     mov cx, dx
+    582	025A  41				     inc cx
+    583	025B  C1 E1 08				     shl cx, 8
+    584
+    585	025E  5F				     pop di
+    586	025F  58				     pop ax
+    587	0260  51				     push cx
+    588
+    589	0261  8B C8				     mov cx, ax
+    590
+    591	0263			     @@scope:
+    592
+    593	0263  51				     push cx
+    594	0264  E8 FEF8				     call strlen
+    595	0267  59				     pop cx
+    596
+    597	0268  2B CB				     sub cx, bx
+    598
+    599	026A  3B DA				     cmp bx, dx
+    600	026C  77 0E				     ja	@@new_lenght
+    601	026E			     @@continue:
+    602
+    603	026E  85 C9				     test cx, cx
+    604	0270  75 06				     jnz @@decrease
+    605
+    606	0272  59				     pop cx
+    607	0273  8A CA				     mov cl, dl
+    608	0275  FE C1				     inc cl
+    609
+    610	0277  C3				     ret
+    611
+    612	0278			     @@decrease:
+    613	0278  47				     inc di
+    614	0279  49				     dec cx
+    615	027A  EB E7				     jmp @@scope
+    616
+    617	027C			     @@new_lenght:
+    618	027C  8B D3				     mov dx, bx
+    619	027E  EB EE				     jmp @@continue
+    620
+    621				     ; _________________________________________________________
+    622
+    623				     ; _________________________________________________________
+    624				     ; Translates bx into string offset
+    625				     ;
+    626				     ; args:
+    627				     ;	     di	- string number
+Turbo Assembler	 Version 4.1	    02/14/26 02:33:47	    Page 12
+drawer.asm
+
+
+
+    628				     ;
+    629				     ; return:
+    630				     ;	     di	- new offset
+    631				     ; del
+    632				     ;	     bx
+    633				     ; _________________________________________________________
+    634
+    635	0280			     translate_string:
+    636
+    637	0280  8B DF				     mov bx, di
+    638	0282  C1 E7 03				     shl di, 3
+    639	0285  D1 E3				     shl bx, 1
+    640	0287  03 FB				     add di, bx
+    641	0289  C1 E7 04				     shl di, 4
+    642
+    643	028C  C3				     ret
+    644
+    645				     ; _________________________________________________________
+    646
+    647				     ; _________________________________________________________
+    648				     ; Count left corner coordinate
+    649				     ;
+    650				     ; args:
+    651				     ;	     ch	- frame	height
+    652				     ;	     cl	- frame	length
+    653				     ;
+    654				     ; returns:
+    655				     ;	     es	- vram sector
+    656				     ;	     di	- left corner offset
+    657				     ;	     bx	- start	string
+    658				     ;
+    659				     ; _________________________________________________________
+    660
+    661	028D			     calculate_left_up_corner:
+    662
+    663	028D  BB B800				     mov bx, VRAM_LOCATION
+    664	0290  8E C3				     mov es, bx
+    665
+    666	0292  D0 ED				     shr ch, 1
+    667	0294  D0 E9				     shr cl, 1
+    668	0296  81 C1 0101			     add cx, 0101h
+    669
+    670	029A  BB 000D				     mov bx, CENTER_Y
+    671	029D  2A DD				     sub bl, ch
+    672	029F  8B FB				     mov di, bx
+    673
+    674	02A1  E8 FFDC				     call translate_string
+    675	02A4  8B DF				     mov bx, di
+    676	02A6  81 C3 00A0			     add bx, NEW_LINE_OFFSET
+    677	02AA  53				     push bx
+    678
+    679	02AB  BB 0028				     mov bx, CENTER_X
+    680	02AE  2A D9				     sub bl, cl
+    681	02B0  D1 E3				     shl bx, 1
+    682
+    683	02B2  03 FB				     add di, bx
+    684
+Turbo Assembler	 Version 4.1	    02/14/26 02:33:47	    Page 13
+drawer.asm
+
+
+
+    685	02B4  5B				     pop bx
+    686
+    687	02B5  C3				     ret
+    688
+    689				     ; _________________________________________________________
+    690
+    691				     end __start__
+Turbo Assembler	 Version 4.1	    02/14/26 02:33:47	    Page 14
 Symbol Table
 
 
@@ -613,26 +762,26 @@ Symbol Table
 
 Symbol Name			  Type	 Value
 
-??DATE				  Text	 "02/12/26"
+??DATE				  Text	 "02/14/26"
 ??FILENAME			  Text	 "drawer  "
-??TIME				  Text	 "19:45:32"
+??TIME				  Text	 "02:33:46"
 ??VERSION			  Number 040A
 @32BIT				  Text	 0
-@@CONTINUE			  Near	 DGROUP:012B
-@@CONTINUE			  Near	 DGROUP:022E
-@@DECREASE			  Near	 DGROUP:017E
-@@DECREASE			  Near	 DGROUP:0236
-@@INCREMENT			  Near	 DGROUP:0130
-@@LEAVE				  Near	 DGROUP:0127
-@@LEAVE				  Near	 DGROUP:014E
-@@NEW_LENGHT			  Near	 DGROUP:023A
-@@SCOPE				  Near	 DGROUP:014A
-@@SCOPE				  Near	 DGROUP:015B
-@@SCOPE				  Near	 DGROUP:01DD
-@@SCOPE				  Near	 DGROUP:0225
-@@SKIP				  Near	 DGROUP:0125
-@@SKIP				  Near	 DGROUP:01EE
-@@TEST				  Near	 DGROUP:020B
+@@CONTINUE			  Near	 DGROUP:0176
+@@CONTINUE			  Near	 DGROUP:026E
+@@DECREASE			  Near	 DGROUP:01BC
+@@DECREASE			  Near	 DGROUP:0278
+@@INCREMENT			  Near	 DGROUP:017B
+@@LEAVE				  Near	 DGROUP:0172
+@@LEAVE				  Near	 DGROUP:018C
+@@NEW_LENGHT			  Near	 DGROUP:027C
+@@SCOPE				  Near	 DGROUP:0188
+@@SCOPE				  Near	 DGROUP:0199
+@@SCOPE				  Near	 DGROUP:021B
+@@SCOPE				  Near	 DGROUP:0263
+@@SKIP				  Near	 DGROUP:0170
+@@SKIP				  Near	 DGROUP:022C
+@@TEST				  Near	 DGROUP:0249
 @CODE				  Text	 DGROUP
 @CODESIZE			  Text	 0
 @CPU				  Text	 0707H
@@ -649,39 +798,44 @@ BG_BLUE				  Number 0010
 BG_GREEN			  Number 0020
 BG_RED				  Number 0040
 BG_WHITE			  Number 0070
+BUFFER				  Number 0081
+BUFFER_LENGTH			  Number 0080
+CALCULATE_LEFT_UP_CORNER	  Near	 DGROUP:028D
 CENTER_X			  Number 0028
 CENTER_Y			  Number 000D
-COMMAND_LINE			  Word	 DGROUP:0000
-COUNT_AL_SYMBOLS_IN_STRING	  Near	 DGROUP:0128
-DRAW_FRAME			  Near	 DGROUP:019D
-DRAW_FRAME_LINE			  Near	 DGROUP:0185
-DRAW_HORIZONTAL			  Near	 DGROUP:0182
+COUNT_AL_SYMBOLS_IN_STRING	  Near	 DGROUP:0173
+DRAW_FRAME			  Near	 DGROUP:01DB
+DRAW_FRAME_LINE			  Near	 DGROUP:01C3
+DRAW_HORIZONTAL			  Near	 DGROUP:01C0
+DREC_CLASSIC			  Struct DGROUP:000C RECT_STYLE
 FG_BLUE				  Number 0001
 FG_BRIGHT			  Number 0008
 FG_GREEN			  Number 0002
 FG_RED				  Number 0004
 FG_WHITE			  Number 000F
-FILLING				  Struct DGROUP:0005 RECT_FILLING
-FRAME_STYLE			  Struct DGROUP:0002 RECT_STYLE
-GET_SIZE			  Near	 DGROUP:0213
-NEW_LINE_OFFSET			  Number 00A0
-SEPARATOR			  Number 002F
-SKIP_SPACES			  Near	 DGROUP:010E
-Turbo Assembler	 Version 4.1	    02/12/26 19:45:32	    Page 12
+FILLING				  Struct DGROUP:0003 RECT_FILLING
+FILLINGS			  Near	 DGROUP:0015
+FRAME_STYLE			  Struct DGROUP:0000 RECT_STYLE
+Turbo Assembler	 Version 4.1	    02/14/26 02:33:47	    Page 15
 Symbol Table
 
 
 
-STRLEN				  Near	 DGROUP:0114
-STYLES				  Near	 DGROUP:000E
-STYLE_0				  Struct DGROUP:000E RECT_STYLE
-STYLE_1				  Struct DGROUP:0011 RECT_STYLE
-STYLE_2				  Struct DGROUP:0014 RECT_STYLE
-TRANSLATE_STRING		  Near	 DGROUP:0134
+GET_SIZE			  Near	 DGROUP:0251
+GITHUB				  Struct DGROUP:0012 RECT_STYLE
+MAIN				  Near	 DGROUP:0107
+NEW_LINE_OFFSET			  Number 00A0
+OLD_SCHOOL			  Struct DGROUP:000F RECT_STYLE
+SEPARATOR			  Number 0023
+SET_STYLE			  Near	 DGROUP:0128
+SKIP_SPACES			  Near	 DGROUP:0157
+STRLEN				  Near	 DGROUP:015F
+STYLES				  Near	 DGROUP:000C
+TRANSLATE_STRING		  Near	 DGROUP:0280
 VRAM_LOCATION			  Number B800
-WRITE_LINE			  Near	 DGROUP:0141
-WRITE_STRING_CENTERED		  Near	 DGROUP:014F
-WRITE_TEXT_CENTERED		  Near	 DGROUP:015B
+WRITE_LINE			  Near	 DGROUP:017F
+WRITE_STRING_CENTERED		  Near	 DGROUP:018D
+WRITE_TEXT_CENTERED		  Near	 DGROUP:0199
 __START__			  Near	 DGROUP:0100
 
 Macro Name
@@ -708,6 +862,6 @@ RECT_STYLE
 Groups & Segments		  Bit Size Align  Combine Class
 
 DGROUP				  Group
-  _DATA				  16  0017 Word	  Public  DATA
-  _TEXT				  16  023E Word	  Public  CODE
+  _DATA				  16  0015 Word	  Public  DATA
+  _TEXT				  16  02B6 Word	  Public  CODE
 
