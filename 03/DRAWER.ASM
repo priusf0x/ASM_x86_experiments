@@ -66,7 +66,10 @@ DREC_CLASSIC    rect_style <BG_WHITE, BG_RED, BG_WHITE>
 OLD_SCHOOL      rect_style <BG_BLUE, BG_WHITE, BG_BLUE>        
 GITHUB          rect_style <      0, BG_WHITE, 0>        
 FILLINGS:
-
+DREC_FILLING    rect_filling <06, 05h, 06h , 06h, 20h,\
+                              06h, 06h, 05h, 06h>
+CLASSIC_FILLING rect_filling <"/". "-". "\", "|", 20h,\
+                              "|", "\", "-", "/">
 
 ; ======================= FUNCTIONS ========================
 
@@ -83,18 +86,17 @@ main:
                 push di 
                 push cx 
 
-                call get_size
-                
+                call get_size  
+
                 push cx
                 call calculate_left_up_corner
                 pop cx
 
-                push bx 
+                push bx
                 call draw_frame
                 
-                pop bx
-                mov di, bx
-                pop cx
+                pop di
+                pop cx 
                 pop si
                 call write_text_centered
                 
@@ -112,36 +114,32 @@ main:
 ;       al
 ; _________________________________________________________
 
-;set_filling:
-;
-;                xor ax, ax
-;                mov al, [si]
-;                sub ax, "0"
-;                mov bx, ax 
-;                shl ax, 1
-;                add bx, ax 
-;                lea bx, [bx + offset STYLES]
-;
-;                mov al, [bx]
-;                mov FRAME_STYLE.global_filling, al
-;                
-;                mov al, [bx + 1]
-;                mov FRAME_STYLE.global_style, al
-;                
-;                mov al, [bx + 2]
-;                mov FRAME_STYLE.global_atribute, al
-;
-;                inc si
-;                mov bx, offset FILLING
-;                mov cx, 9h
-;@@set_param:
-;                mov al, [si]
-;                mov [bx], al  
-;                inc si
-;                inc bx
-;                loop @@set_param 
-;
-;                ret 
+set_filling:
+
+                call skip_spaces
+        
+                mov al, es:[di]
+                inc di 
+                dec cx
+                sub ax, "0"     
+
+
+                mov bx, ax 
+                shl bx, 3          
+                add bx, ax         ; multiplication on 8
+                
+
+                mov FRAME_STYLE.global_filling, al
+                inc bx
+
+                mov al, [offset STYLES + bx]
+                mov FRAME_STYLE.global_style, al
+                inc bx
+
+                mov al, [offset STYLES + bx]
+                mov FRAME_STYLE.global_atribute, al 
+
+                ret 
 
 ; _________________________________________________________
 
@@ -156,7 +154,7 @@ main:
 ;       es:di - ptr to skipped arg  
 ;       cx    - length es:di
 ; delete:
-;       ax, bx 
+;       ax, bx, si, es
 ; _________________________________________________________
 
 set_style:
@@ -172,19 +170,22 @@ set_style:
                 mov bx, ax 
                 shl bx, 1
                 add bx, ax
-                
-                mov al, [bx + offset STYLES]
-                mov FRAME_STYLE.global_filling, al
-                inc bx
+                 
+                push di 
+                push cx
+                                             ; preparing for copiing
 
-                mov al, [offset STYLES + bx]
-                mov FRAME_STYLE.global_style, al
-                inc bx
+                mov si, offset STYLES 
+                add si, bx 
 
-                mov al, [offset STYLES + bx]
-                mov FRAME_STYLE.global_atribute, al
-                
-                call skip_spaces
+                mov cx, 3
+
+                mov di, offset FRAME_STYLE 
+
+                rep movsb 
+
+                pop cx 
+                pop di
 
                 ret 
 
@@ -284,7 +285,6 @@ count_al_symbols_in_string:
 
 @@increment: 
                 inc dx
-                inc si
                 jmp @@continue
 
 ; _________________________________________________________
@@ -332,7 +332,7 @@ write_line:
 
 write_string_centered:
 
-                add di, CENTER_X * 2
+                add di, CENTER_X * 2 
                 sub di, cx 
                 
                 and di, 0FFFFh - 1 
