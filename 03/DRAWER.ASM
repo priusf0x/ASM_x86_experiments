@@ -60,7 +60,7 @@ __start__:
 
 .data 
 FRAME_STYLE     rect_style <BG_WHITE, BG_RED, BG_WHITE>        
-FILLING         rect_filling <6,5,6,5,32,5,6,5,6>
+FRAME_FILLING   rect_filling <6,5,6,5,32,5,6,5,6>
 STYLES:
 DREC_CLASSIC    rect_style <BG_WHITE, BG_RED, BG_WHITE>        
 OLD_SCHOOL      rect_style <BG_BLUE, BG_WHITE, BG_BLUE>        
@@ -68,8 +68,10 @@ GITHUB          rect_style <      0, BG_WHITE, 0>
 FILLINGS:
 DREC_FILLING    rect_filling <06, 05h, 06h , 06h, 20h,\
                               06h, 06h, 05h, 06h>
-CLASSIC_FILLING rect_filling <"/". "-". "\", "|", 20h,\
+CLASSIC_FILLING rect_filling <"/", "-", "\", "|", 20h,\
                               "|", "\", "-", "/">
+NAXUI_FPMI      rect_filling <0bh, 0ch, 0bh, 0ch, 20h,\
+                              0ch, 0bh, 0ch, 0bh>
 
 ; ======================= FUNCTIONS ========================
 
@@ -80,11 +82,14 @@ CLASSIC_FILLING rect_filling <"/". "-". "\", "|", 20h,\
 main:
 
                 mov cl, ds:[BUFFER_LENGTH]
-                mov di, BUFFER
+                mov si, BUFFER
                 call set_style
+                call set_filling
 
-                push di 
+                push si 
                 push cx 
+
+                mov di, si
 
                 call get_size  
 
@@ -116,30 +121,47 @@ main:
 
 set_filling:
 
+                mov di, si
                 call skip_spaces
+                mov di, si
         
-                mov al, es:[di]
-                inc di 
+                lodsb
                 dec cx
                 sub ax, "0"     
 
+                jz @@parse_fillings
 
+                dec ax 
                 mov bx, ax 
                 shl bx, 3          
                 add bx, ax         ; multiplication on 8
-                
 
-                mov FRAME_STYLE.global_filling, al
-                inc bx
+                push si 
+                push cx 
 
-                mov al, [offset STYLES + bx]
-                mov FRAME_STYLE.global_style, al
-                inc bx
+                mov si, offset FILLINGS 
+                add si, bx 
 
-                mov al, [offset STYLES + bx]
-                mov FRAME_STYLE.global_atribute, al 
+                mov cx, 09h
+
+                mov di, offset FRAME_FILLING 
+
+                rep movsb 
+
+                pop cx 
+                pop si
 
                 ret 
+
+@@parse_fillings:
+                push cx 
+                mov cx, 09h
+                mov di, offset FRAME_FILLING 
+                rep movsb 
+                pop cx 
+                sub cx, 09h
+
+                ret
 
 ; _________________________________________________________
 
@@ -147,11 +169,11 @@ set_filling:
 ; Setting frame style 
 ;       
 ; args: 
-;       es:di - input string  
+;       ds:si - input string  
 ;       cx    - string length 
 ;    
 ; returns: 
-;       es:di - ptr to skipped arg  
+;       ds:si - ptr to skipped arg  
 ;       cx    - length es:di
 ; delete:
 ;       ax, bx, si, es
@@ -159,11 +181,11 @@ set_filling:
 
 set_style:
 
+                mov di, si 
                 call skip_spaces
-                call skip_spaces
+                mov si, di 
         
-                mov al, es:[di]
-                inc di 
+                lodsb
                 dec cx
                 sub ax, "0"     
 
@@ -171,21 +193,21 @@ set_style:
                 shl bx, 1
                 add bx, ax
                  
-                push di 
+                push si 
                 push cx
                                              ; preparing for copiing
 
                 mov si, offset STYLES 
                 add si, bx 
 
-                mov cx, 3
+                mov cx, 03h
 
                 mov di, offset FRAME_STYLE 
 
                 rep movsb 
 
                 pop cx 
-                pop di
+                pop si
 
                 ret 
 
@@ -483,9 +505,9 @@ draw_frame:
                 mov bh, FRAME_STYLE.global_style
                 mov dh, FRAME_STYLE.global_style
 
-                mov al, FILLING.filling_ul
-                mov bl, FILLING.filling_u
-                mov dl, FILLING.filling_ur
+                mov al, FRAME_FILLING.filling_ul
+                mov bl, FRAME_FILLING.filling_u
+                mov dl, FRAME_FILLING.filling_ur
 
                 push di
 
@@ -503,9 +525,9 @@ draw_frame:
                 mov bh, FRAME_STYLE.global_filling
                 mov dh, FRAME_STYLE.global_style
 
-                mov al, FILLING.filling_ml
-                mov bl, FILLING.filling_m
-                mov dl, FILLING.filling_mr
+                mov al, FRAME_FILLING.filling_ml
+                mov bl, FRAME_FILLING.filling_m
+                mov dl, FRAME_FILLING.filling_mr
 
                 jmp @@test
 @@scope:
@@ -529,9 +551,9 @@ draw_frame:
                 mov bh, FRAME_STYLE.global_style
                 mov dh, FRAME_STYLE.global_style
 
-                mov al, FILLING.filling_dl
-                mov bl, FILLING.filling_d
-                mov dl, FILLING.filling_dr
+                mov al, FRAME_FILLING.filling_dl
+                mov bl, FRAME_FILLING.filling_d
+                mov dl, FRAME_FILLING.filling_dr
                 
                 mov cx, si
 
