@@ -6,21 +6,21 @@ locals @@
 
 include macros.asm
 
-; ====================== ATRIBUTES ========================
+; ====================== ATTRIBUTES ========================
 
 FG_BLUE         equ 00000001b
 FG_GREEN        equ 00000010b
 FG_RED          equ 00000100b
 FG_BRIGHT       equ 00001000b
 
-FG_WHITE        equ FG_BLUE xor FG_GREEN xor FG_RED xor FG_BRIGHT
+FG_WHITE        equ FG_BLUE or FG_GREEN or FG_RED or FG_BRIGHT
 
 BG_BLUE         equ 00010000b
 BG_GREEN        equ 00100000b
 BG_RED          equ 01000000b
 BG_BLINK        equ 10000000b
 
-BG_WHITE        equ BG_BLUE xor BG_GREEN xor BG_RED
+BG_WHITE        equ BG_BLUE or BG_GREEN or BG_RED
 
 ; ======================= HELPERS =========================
 
@@ -98,6 +98,10 @@ main:
                 pop cx
 
                 push bx
+
+                push cx 
+                push di
+
                 call draw_frame
                 
                 pop di
@@ -120,10 +124,6 @@ main:
 ; _________________________________________________________
 
 set_filling:
-
-                mov di, si
-                call skip_spaces
-                mov di, si
         
                 lodsb
                 dec cx
@@ -190,7 +190,7 @@ set_style:
                 sub ax, "0"     
 
                 mov bx, ax 
-                shl bx, 1
+                shl bx, 1 
                 add bx, ax
                  
                 push si 
@@ -222,7 +222,7 @@ set_style:
 ;      
 ; return: 
 ;       di - skipped until separator 
-;       ci - si string length
+;di       ci - si string length
 ; delete:
 ;       al
 ; _________________________________________________________
@@ -230,7 +230,7 @@ set_style:
 skip_spaces:
 
                 cld
-                mov al, 20h      
+                mov al, 20h ; symbol to skip    
                 
                 repe scasb
                 inc cx
@@ -362,6 +362,7 @@ write_string_centered:
                 call write_line
 
                 ret
+
 ; _________________________________________________________
 
 ; _________________________________________________________
@@ -495,6 +496,12 @@ draw_frame_line:
 
 draw_frame:
 
+                push bp
+                mov bp, sp
+
+                mov cx, [bp + 6]
+                mov di, [bp + 4]
+
 ;;;;;;;;;;;;;;;;;;;;;;;; saving cx ;;;;;;;;;;;;;;;;;;;;;;;;
 
                 mov si, cx 
@@ -559,7 +566,9 @@ draw_frame:
 
                 call draw_frame_line
                 
-                ret
+                pop bp
+
+                ret 4
 
 @@test:
                 mov cx, si 
@@ -634,10 +643,10 @@ get_size:
 ; _________________________________________________________
 
 ; _________________________________________________________
-; Translates bx into string offset  
+; Translates di into row offset  
 ;      
 ; args: 
-;       di - string number 
+;       di - row number 
 ;
 ; return: 
 ;       di - new offset 
@@ -648,10 +657,9 @@ get_size:
 translate_string:
 
                 mov bx, di 
-                shl di, 3
-                shl bx, 1
+                shl di, 7
+                shl bx, 5
                 add di, bx              
-                shl di, 4
                 
                 ret
 
