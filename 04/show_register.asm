@@ -68,24 +68,39 @@ set_resident    proc
 ; Chaining 09h interrupt  
 ; _________________________________________________________
 
+SYSTEM_INFO     equ 40h
+SPEC_KEYS_MEM   equ 17h
+
 int09chaining   proc  
 
                 push bx es ax 
 
-                mov bx, 40h
+                mov bx, SYSTEM_INFO
                 mov es, bx
 ;;;;;;;;;;;;;; getting next buffer element ;;;;;;;;;;;;;;;;
-                mov bx, es:[1ah]
+                ; mov bx, es:[1ah]
 ;;;;;;;;;;;;;;;;;;; calculating previous ;;;;;;;;;;;;;;;;;;
-                sub bx, 1eh
-                add bx, 30d
-                and bx, 31d
-                add bx, 1eh
+                ; sub bx, 1eh
+                ; add bx, 30d
+                ; and bx, 31d
+                ; add bx, 1eh
+                ;
+                ; mov bh, es:[bx]
 
-                mov ax, es:[bx]
+                in al, 60h
+                mov bl, al
+
+                ; mov bh, es:[SPEC_KEYS_MEM]
+
+                in al, 61h
+                or al, 80h 
+                out 61h, al 
+                and al, not 80h
+                out 61h, al 
+
 ;;;;;;;;;;;;;;;;;;; add overhead function  ;;;;;;;;;;;;;;;;
 
-                cmp ah, 94h
+                cmp bl, 2ah
                 jne @@not_interrupt_func
                 pop ax es bx 
                 call show_registers
